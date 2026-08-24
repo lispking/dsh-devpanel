@@ -47,6 +47,19 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-devpanel: dictionaries')
   installConsoleStyles(ctx)
 
+  // Global hotkey: Cmd/Ctrl+Shift+` toggles the terminal dialog, wherever
+  // focus is (composer, sidebar, terminal). Shift+Backquote reports key '~'.
+  ctx.effect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return
+      if (event.key !== '`' && event.key !== '~') return
+      event.preventDefault()
+      store.update(draft => { draft.dialogOpen = !draft.dialogOpen })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, 'dsh-devpanel: terminal hotkey')
+
   // This plugin itself mounts the `remote.terminalPanel` namespace above, so
   // it cannot be a static `inject` entry (the loader would wait for a service
   // only this apply provides — a self-wait deadlock). Instead read the live
