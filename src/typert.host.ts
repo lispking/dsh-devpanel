@@ -18,54 +18,18 @@
 
 import { z } from 'zod'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
-
-const sessionStatusSchema = z.union([
-  z.object({ kind: z.literal('running') }),
-  z.object({
-    kind: z.literal('exited'),
-    exitCode: z.number().nullable(),
-    signal: z.string().nullable(),
-  }),
-])
-
-const spawnRequestSchema = z.object({
-  argv: z.array(z.string()),
-  cwd: z.string(),
-  rows: z.number(),
-  cols: z.number(),
-  name: z.string().optional(),
-})
-const spawnResultSchema = z.object({ id: z.string(), pid: z.number(), shell: z.string() })
-const writeResultSchema = z.object({ ok: z.literal(true) })
-const readResultSchema = z.object({
-  delta: z.string(),
-  status: sessionStatusSchema,
-})
-const signalResultSchema = z.object({ delivered: z.literal(true), targetPgid: z.number() })
-const terminateResultSchema = z.object({ ok: z.literal(true) })
-const sessionViewSchema = z.object({
-  id: z.string(),
-  name: z.string().optional(),
-  shell: z.string().optional(),
-  pid: z.number().optional(),
-  status: sessionStatusSchema,
-})
-const listResultSchema = z.object({ sessions: z.array(sessionViewSchema) })
-const disposeResultSchema = z.object({ ok: z.literal(true) })
-const readFileResultSchema = z.object({
-  path: z.string(),
-  content: z.string(),
-  kind: z.union([z.literal('text'), z.literal('image')]),
-  dataUrl: z.string().optional(),
-})
-
-const signalSchema = z.union([
-  z.literal('SIGINT'),
-  z.literal('SIGTERM'),
-  z.literal('SIGKILL'),
-  z.literal('SIGTSTP'),
-  z.literal('SIGHUP'),
-])
+import {
+  spawnRequestSchema,
+  spawnResultSchema,
+  writeResultSchema,
+  readResultSchema,
+  signalResultSchema,
+  terminateResultSchema,
+  listResultSchema,
+  disposeResultSchema,
+  readFileResultSchema,
+  signalSchema,
+} from './schemas.ts'
 
 const NAMESPACE = 'terminalPanel'
 

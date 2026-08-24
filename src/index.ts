@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { readFile as readFileNode, stat } from 'node:fs/promises'
-import { extname, basename } from 'node:path'
+import { extname, basename, resolve, relative } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
@@ -32,6 +32,9 @@ import type {
 
 /** Retained scrollback cap per session; overflow keeps the TAIL. */
 const MAX_SCROLLBACK_BYTES = 1_000_000
+
+/** Overall teardown budget at plugin unload; a stuck PTY must not hang the host. */
+const DISPOSE_BUDGET_MS = 5_000
 
 /** Extension → MIME for image files the browser viewer renders natively. */
 const IMAGE_MIME: Readonly<Record<string, string>> = {
@@ -105,7 +108,16 @@ export class TerminalPanelService extends TypertRemoteService {
     // is empty) and zsh print a literal '?' in front of prompt glyphs whose
     // width it cannot resolve. Wrap the default shell so it exports a real
     // TERM before exec'ing the user's shell — self-contained, no harness
-    // change required. Explicit request argv is left verbatim.
+    // change required.
+    //
+    // Constraint: the TERM wrapper is ONLY applied when the caller leaves
+    // argv empty (the panel's own default tab). Explicit request argv is
+    // passed verbatim, so a caller who spawns `['bash']` directly inherits
+    // TERM=dumb and loses `clear`/prompt glyphs. This is intentional — the
+    // wrapper re-execs `${SHELL}` which would clobber a caller-chosen
+    // program — but the client default-tab path always sends argv: [] and
+    // therefore always gets the wrapped shell. Callers passing explicit
+    // argv are responsible for their own TERM setup.
     const defaultShell = process.env.SHELL ?? '/bin/sh'
     const argv = request.argv.length > 0
       ? [...request.argv]
@@ -144,9 +156,12 @@ export class TerminalPanelService extends TypertRemoteService {
           : String(chunk)
       record.buffer += text
       if (record.buffer.length > MAX_SCROLLBACK_BYTES) {
+        // Drop the overflowed PREFIX (not the just-appended chunk); the cursor
+        // must shift by exactly the number of bytes removed from the front.
+        const before = record.buffer.length
         record.buffer = record.buffer.slice(-MAX_SCROLLBACK_BYTES)
-        // Keep the delta cursor coherent: drop the same tail from the cursor.
-        record.readOffset = Math.max(0, record.readOffset - (MAX_SCROLLBACK_BYTES > 0 ? text.length : 0))
+        const dropped = before - record.buffer.length
+        record.readOffset = Math.max(0, record.readOffset - dropped)
       }
     })
     void handle.done.then(
@@ -246,6 +261,16 @@ export class TerminalPanelService extends TypertRemoteService {
 
   /**
    * Read one file for the browser file viewer (the AI-output sidebar).
+   *
+   * Threat model: the browser is the same user who already owns the host
+   * shell, so we do NOT forbid reading `~/.ssh` or `/etc/passwd` — those are
+   * files the user could `cat` in the terminal anyway. What we DO prevent is
+   * accidental traversal OUT of the session's project directory via relative
+   * `..` segments in a path that the caller expected to be project-local. An
+   * absolute path or a `~`-prefixed path is honored verbatim (explicit user
+   * intent); a relative path is resolved under `cwd` and rejected if the
+   * normalized target escapes that root.
+   *
    * @param path - absolute path, `~`-prefixed home path, or path relative to `cwd`.
    * @param cwd - base directory for relative paths (the session's project
    *   directory); defaults to the host process cwd.
@@ -258,7 +283,19 @@ export class TerminalPanelService extends TypertRemoteService {
       ? `${homedir()}${path.slice(1)}`
       : path
     const base = cwd === undefined || cwd === '' || cwd === '~' ? process.cwd() : cwd
-    const target = resolved.startsWith('/') ? resolved : `${base}/${resolved}`
+    const target = resolve(resolved.startsWith('/') ? resolved : `${base}/${resolved}`)
+    // Reject relative paths that traverse out of the project root. Absolute
+    // and `~`-prefixed paths are explicit user intent and stay allowed.
+    if (!resolved.startsWith('/') && !resolved.startsWith('~')) {
+      const drift = relative(resolve(base), target)
+      if (drift.startsWith('..') || drift === '') {
+        if (drift === '') {
+          // target IS the base dir itself — not a file, let stat reject it.
+        } else {
+          throw new Error(`terminalPanel: path escapes project directory ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
+        }
+      }
+    }
     const info = await stat(target)
     if (!info.isFile()) {
       throw new Error(`terminalPanel: not a file ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
@@ -284,7 +321,16 @@ export class TerminalPanelService extends TypertRemoteService {
   private async disposeAll(): Promise<void> {
     const records = [...this.sessions.values()]
     this.sessions.clear()
-    await Promise.allSettled(records.map(record => record.handle.terminate()))
+    // Cap teardown: each PTY terminate has a 2s grace, but a fan-out of N
+    // stuck sessions must not hang the host on plugin unload. Race the
+    // allSettled against an overall budget and let the OS reap the losers.
+    const teardown = Promise.allSettled(records.map(record => record.handle.terminate()))
+    await Promise.race([
+      teardown,
+      new Promise<void>((resolve) => { setTimeout(resolve, DISPOSE_BUDGET_MS).unref?.() }),
+    ])
+    // Detach from the in-flight settle so an unref'd timer leak doesn't build.
+    void teardown.then(() => {})
   }
 }
 

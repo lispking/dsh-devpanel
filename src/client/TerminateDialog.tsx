@@ -79,6 +79,8 @@ interface TerminalSessionUi {
   fit: FitAddon
   /** Whether the xterm instance has been opened into its mount div. */
   opened: boolean
+  /** Whether the exit-time final read still needs to drain residual output. */
+  pendingFinalRead: boolean
 }
 
 /** Compute the next tab label: default, default 2, default 3, … */
@@ -233,8 +235,10 @@ function TerminateView({
     const mySpawn = ++spawnIdRef.current
     void terminalPanel.spawn(request).then((result) => {
       if (mySpawn !== spawnIdRef.current) {
-        // A newer spawn superseded this one: drop the orphan terminal.
+        // A newer spawn superseded this one: drop the orphan terminal AND
+        // dispose the server-side PTY it would have attached to.
         terminal.dispose()
+        if (result.ok) void terminalPanel.dispose(result.value.id)
         return
       }
       if (!result.ok) {
@@ -257,12 +261,18 @@ function TerminateView({
         terminal,
         fit,
         opened: false,
+        pendingFinalRead: false,
       }
       tabsRef.current = [...tabsRef.current, session]
       setTabs(tabsRef.current)
       setActiveId(result.value.id)
       // Open into its mount once the div is rendered (next frame).
       window.requestAnimationFrame(() => openTerminal(session))
+    }).catch(() => {
+      // Transport reject (abort, codec, network). The terminal was never
+      // attached to a tab, so just dispose the orphan xterm and surface the
+      // failure to the console without leaking an unhandled rejection.
+      terminal.dispose()
     })
   }
 
@@ -294,16 +304,32 @@ function TerminateView({
     if (!open) return
     const timer = window.setInterval(() => {
       for (const session of tabsRef.current) {
-        if (session.view.status.kind !== 'running') continue
-        void terminalPanel.read(session.view.id).then((result) => {
-          if (!result.ok) return
-          if (result.value.delta !== '') {
-            session.terminal.write(result.value.delta)
-          }
-          if (result.value.status.kind !== session.view.status.kind) {
-            session.view.status = result.value.status
-          }
-        })
+        // Skip sessions that are running AND haven't just exited — the
+        // running path below handles them. A session flagged for a final
+        // read (it just transitioned to 'exited') still needs one more poll
+        // to drain the residual output before it goes quiet.
+        if (session.view.status.kind === 'running' && !session.pendingFinalRead) {
+          void terminalPanel.read(session.view.id).then((result) => {
+            if (!result.ok) return
+            if (result.value.delta !== '') {
+              session.terminal.write(result.value.delta)
+            }
+            if (result.value.status.kind !== session.view.status.kind) {
+              session.view.status = result.value.status
+              // The session just exited — arm the final drain on the next tick.
+              session.pendingFinalRead = true
+            }
+          })
+        } else if (session.pendingFinalRead) {
+          // One last read after exit captures the trailing bytes the host
+          // may have emitted between the last poll and the exit transition.
+          session.pendingFinalRead = false
+          void terminalPanel.read(session.view.id).then((result) => {
+            if (result.ok && result.value.delta !== '') {
+              session.terminal.write(result.value.delta)
+            }
+          })
+        }
       }
     }, READ_INTERVAL_MS)
     return () => { window.clearInterval(timer) }
