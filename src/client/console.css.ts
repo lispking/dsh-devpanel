@@ -301,6 +301,73 @@ export const CONSOLE_CSS = `
   color: #f26d78;
 }
 
+/* Terminal search bar (Cmd/Ctrl+F): input + result counter + prev/next + close,
+   a slim dark strip between the tab bar and the terminal band. */
+.dsh-devpanel-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 12px;
+  background: #1b1b1f;
+  border-bottom: 1px solid #2c2c31;
+}
+.dsh-devpanel-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  border: 1px solid #2c2c31;
+  border-radius: 4px;
+  background: #26262c;
+  color: #e4e4e7;
+  font: inherit;
+  outline: none;
+}
+.dsh-devpanel-search input:focus {
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-devpanel-search input::placeholder {
+  color: #9b9ba3;
+}
+.dsh-devpanel-search-count {
+  flex: none;
+  color: #9b9ba3;
+  font-size: 11px;
+  min-width: 34px;
+  text-align: right;
+}
+.dsh-devpanel-search button {
+  flex: none;
+  padding: 1px 7px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #9b9ba3;
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.dsh-devpanel-search button:hover {
+  background: #26262c;
+  color: #e4e4e7;
+}
+.dsh-devpanel-search .dsh-devpanel-search-close:hover {
+  color: #f26d78;
+}
+
+/* Band-height drag handle: a slim strip above the terminals band that the
+   user drags vertically (ns-resize); height persists to localStorage. */
+.dsh-devpanel-resize {
+  flex: none;
+  height: 6px;
+  cursor: ns-resize;
+  touch-action: none;
+  background: #1b1b1f;
+}
+.dsh-devpanel-resize:hover {
+  background: #2c2c33;
+}
+
 /* Every tab's terminal mount lives in one band; only the active one shows. */
 .dsh-devpanel-terminals {
   position: relative;

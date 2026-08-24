@@ -26,6 +26,11 @@ export type ConsoleKey =
   | 'dialog.closeTab'
   | 'dialog.placeholder'
   | 'dialog.noSession'
+  | 'dialog.search.placeholder'
+  | 'dialog.search.prev'
+  | 'dialog.search.next'
+  | 'dialog.search.close'
+  | 'dialog.resize'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -57,6 +62,11 @@ export const zh: Record<ConsoleKey, string> = {
   'dialog.closeTab': '关闭终端',
   'dialog.placeholder': '输入命令，回车执行',
   'dialog.noSession': '没有终端会话',
+  'dialog.search.placeholder': '搜索终端输出',
+  'dialog.search.prev': '上一个匹配',
+  'dialog.search.next': '下一个匹配',
+  'dialog.search.close': '关闭搜索',
+  'dialog.resize': '拖拽调整终端高度',
 }
 
 /** English dictionary. */
@@ -82,4 +92,9 @@ export const en: Record<ConsoleKey, string> = {
   'dialog.closeTab': 'Close terminal',
   'dialog.placeholder': 'Type a command and press Enter',
   'dialog.noSession': 'No terminal session',
+  'dialog.search.placeholder': 'Search terminal output',
+  'dialog.search.prev': 'Previous match',
+  'dialog.search.next': 'Next match',
+  'dialog.search.close': 'Close search',
+  'dialog.resize': 'Drag to resize the terminal height',
 }
