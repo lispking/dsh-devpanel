@@ -137,6 +137,13 @@ export const CONSOLE_CSS = `
   border-bottom: 1px solid #2c2c31;
   overflow-x: auto;
   scrollbar-width: thin;
+  /* The dialog bleeds ~8px past the scrollport's right edge (see
+     .dsh-devpanel-dialog: negative margins cover the reserved gutter plus an
+     engine-variance buffer) and that overhang is clipped. The trailing +/×
+     actions would otherwise sit flush against the clipped edge and get cut
+     off, so extra right padding pulls them back into the visible band while
+     the dark background still fills edge-to-edge. */
+  padding-right: calc(8px + var(--dsh-scrollbar-width, 8px) + 8px);
 }
 .dsh-devpanel-shell-badge {
   flex: none;
@@ -185,11 +192,20 @@ export const CONSOLE_CSS = `
   color: #f26d78;
 }
 .dsh-devpanel-tabs-actions {
+  /* Keep the trailing +/× pinned to the visible right edge while the tab
+     strip scrolls underneath: without this, margin-left:auto pushes the
+     actions past the scrollport when many tabs overflow and the close
+     button disappears. Solid background occludes tabs sliding under, with a
+     soft left shadow to mask the sliding edge. */
+  position: sticky;
+  right: 0;
   display: inline-flex;
   align-items: center;
   gap: 2px;
   margin-left: auto;
   flex: none;
+  background: #1b1b1f;
+  box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.55);
 }
 .dsh-devpanel-tab-add {
   padding: 1px 8px;
