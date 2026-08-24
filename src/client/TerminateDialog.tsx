@@ -382,26 +382,26 @@ function TerminateView({
 
   if (!open) return null
   return (
-    <div className="dsh-toolkit-dialog" role="dialog" aria-label={t('dialog.title')}>
-      <div className="dsh-toolkit-tabs">
-        <span className="dsh-toolkit-title">{t('dialog.title')}</span>
+    <div className="dsh-devpanel-dialog" role="dialog" aria-label={t('dialog.title')}>
+      <div className="dsh-devpanel-tabs">
+        <span className="dsh-devpanel-title">{t('dialog.title')}</span>
         {active?.view.shell !== undefined && (
-          <span className="dsh-toolkit-shell-badge">{active.view.shell}</span>
+          <span className="dsh-devpanel-shell-badge">{active.view.shell}</span>
         )}
         {tabs.map(session => (
           <button
             key={session.view.id}
             type="button"
-            className="dsh-toolkit-tab"
+            className="dsh-devpanel-tab"
             data-active={session.view.id === activeId || undefined}
             onClick={() => {
               setActiveId(session.view.id)
               window.requestAnimationFrame(() => openTerminal(session))
             }}
           >
-            <span className="dsh-toolkit-tab-label">{session.view.name ?? session.view.shell ?? 'terminal'}</span>
+            <span className="dsh-devpanel-tab-label">{session.view.name ?? session.view.shell ?? 'terminal'}</span>
             <span
-              className="dsh-toolkit-tab-close"
+              className="dsh-devpanel-tab-close"
               role="button"
               aria-label={t('dialog.closeTab')}
               onClick={(event) => {
@@ -413,10 +413,10 @@ function TerminateView({
             </span>
           </button>
         ))}
-        <div className="dsh-toolkit-tabs-actions">
+        <div className="dsh-devpanel-tabs-actions">
           <button
             type="button"
-            className="dsh-toolkit-tab-add"
+            className="dsh-devpanel-tab-add"
             aria-label={t('dialog.newTab')}
             title={t('dialog.newTab')}
             onClick={spawn}
@@ -425,7 +425,7 @@ function TerminateView({
           </button>
           <button
             type="button"
-            className="dsh-toolkit-close"
+            className="dsh-devpanel-close"
             aria-label={t('dialog.close')}
             onClick={closePanel}
           >
@@ -433,11 +433,11 @@ function TerminateView({
           </button>
         </div>
       </div>
-      <div className="dsh-toolkit-terminals">
+      <div className="dsh-devpanel-terminals">
         {tabs.map(session => (
           <div
             key={session.view.id}
-            className="dsh-toolkit-terminal"
+            className="dsh-devpanel-terminal"
             data-active={session.view.id === activeId || undefined}
             ref={(element) => {
               if (element === null) mountsRef.current.delete(session.view.id)

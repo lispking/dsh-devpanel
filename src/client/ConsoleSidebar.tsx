@@ -174,7 +174,7 @@ function codeLangOf(path: string): string | undefined {
 function FileBody({ result }: { result: ConsoleReadFileResult }) {
   if (result.kind === 'image' && result.dataUrl !== undefined) {
     return (
-      <div className="dsh-toolkit-file-image">
+      <div className="dsh-devpanel-file-image">
         <img src={result.dataUrl} alt={result.path} />
       </div>
     )
@@ -182,7 +182,7 @@ function FileBody({ result }: { result: ConsoleReadFileResult }) {
   const ext = result.path.split('.').pop()?.toLowerCase()
   if (ext === 'md' || ext === 'mdx') {
     return (
-      <div className="dsh-toolkit-file-markdown">
+      <div className="dsh-devpanel-file-markdown">
         <MarkdownText text={result.content} fileMentions={undefined} />
       </div>
     )
@@ -190,12 +190,12 @@ function FileBody({ result }: { result: ConsoleReadFileResult }) {
   const lang = codeLangOf(result.path)
   if (lang !== undefined) {
     return (
-      <div className="dsh-toolkit-file-code">
+      <div className="dsh-devpanel-file-code">
         <CodeBlock code={result.content} lang={lang} />
       </div>
     )
   }
-  return <pre className="dsh-toolkit-file-content">{result.content}</pre>
+  return <pre className="dsh-devpanel-file-content">{result.content}</pre>
 }
 
 /**
@@ -238,12 +238,12 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   if (!state.sidebarOpen) return null
   return (
     <>
-      <div className="dsh-toolkit-sidebar" role="region" aria-label={t('sidebar.title')}>
-        <div className="dsh-toolkit-sidebar-header">
-          <span className="dsh-toolkit-sidebar-title">{t('sidebar.title')}</span>
+      <div className="dsh-devpanel-sidebar" role="region" aria-label={t('sidebar.title')}>
+        <div className="dsh-devpanel-sidebar-header">
+          <span className="dsh-devpanel-sidebar-title">{t('sidebar.title')}</span>
           <button
             type="button"
-            className="dsh-toolkit-close"
+            className="dsh-devpanel-close"
             aria-label={t('sidebar.close')}
             onClick={() => {
               store.update(draft => { draft.sidebarOpen = false })
@@ -254,15 +254,15 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
           </button>
         </div>
       {files.length === 0
-        ? <div className="dsh-toolkit-empty">{t('sidebar.empty')}</div>
+        ? <div className="dsh-devpanel-empty">{t('sidebar.empty')}</div>
         : (
           <>
-            <div className="dsh-toolkit-files">
+            <div className="dsh-devpanel-files">
               {files.map((file) => (
                 <button
                   key={file.path}
                   type="button"
-                  className="dsh-toolkit-file"
+                  className="dsh-devpanel-file"
                   data-active={file.path === active || undefined}
                   onClick={() => { setActive(file.path) }}
                   title={file.path}
@@ -271,18 +271,18 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
                 </button>
               ))}
             </div>
-            <div className="dsh-toolkit-file-view">
+            <div className="dsh-devpanel-file-view">
               {error !== null
-                ? <div className="dsh-toolkit-empty">{error}</div>
+                ? <div className="dsh-devpanel-empty">{error}</div>
                 : result === null
-                  ? <div className="dsh-toolkit-empty">{t('sidebar.select')}</div>
+                  ? <div className="dsh-devpanel-empty">{t('sidebar.select')}</div>
                   : (
                     <>
-                      <div className="dsh-toolkit-file-path">
-                        <span className="dsh-toolkit-file-path-text">{result.path}</span>
+                      <div className="dsh-devpanel-file-path">
+                        <span className="dsh-devpanel-file-path-text">{result.path}</span>
                         <button
                           type="button"
-                          className="dsh-toolkit-file-maximize"
+                          className="dsh-devpanel-file-maximize"
                           aria-label={t('sidebar.maximize')}
                           title={t('sidebar.maximize')}
                           onClick={() => { setMaximized(true) }}
@@ -298,19 +298,19 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
         )}
     </div>
     {maximized && result !== null && (
-      <div className="dsh-toolkit-file-fullscreen" role="dialog" aria-label={result.path}>
-        <div className="dsh-toolkit-file-fullscreen-header">
-          <span className="dsh-toolkit-file-path-text">{result.path}</span>
+      <div className="dsh-devpanel-file-fullscreen" role="dialog" aria-label={result.path}>
+        <div className="dsh-devpanel-file-fullscreen-header">
+          <span className="dsh-devpanel-file-path-text">{result.path}</span>
           <button
             type="button"
-            className="dsh-toolkit-close"
+            className="dsh-devpanel-close"
             aria-label={t('sidebar.close')}
             onClick={() => { setMaximized(false) }}
           >
             ×
           </button>
         </div>
-        <div className="dsh-toolkit-file-fullscreen-body">
+        <div className="dsh-devpanel-file-fullscreen-body">
           <FileBody result={result} />
         </div>
       </div>

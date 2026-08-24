@@ -15,12 +15,12 @@ export const CONSOLE_STYLE_PLUGIN = 'dsh-devpanel/styles'
 
 /** Terminal console styles: header icons, right AI sidebar, Terminate dialog. */
 export const CONSOLE_CSS = `
-.dsh-toolkit-header-actions {
+.dsh-devpanel-header-actions {
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
-.dsh-toolkit-header-icon {
+.dsh-devpanel-header-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -33,15 +33,15 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-secondary, #4b5563);
   cursor: pointer;
 }
-.dsh-toolkit-header-icon:hover {
+.dsh-devpanel-header-icon:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--dsw-alias-label-primary, #111827);
 }
-.dsh-toolkit-header-icon[aria-pressed='true'] {
+.dsh-devpanel-header-icon[aria-pressed='true'] {
   color: var(--dsw-alias-state-business-primary, #2563eb);
 }
 
-.dsh-toolkit-sidebar {
+.dsh-devpanel-sidebar {
   /* Fills the harness layout's right details column (the column owns width
      and geometry; this only needs the full-height column layout and its
      internal scrolling regions). */
@@ -52,7 +52,7 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-primary, #111827);
   font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.dsh-toolkit-sidebar-header {
+.dsh-devpanel-sidebar-header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -60,11 +60,11 @@ export const CONSOLE_CSS = `
   border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   flex: none;
 }
-.dsh-toolkit-sidebar-title {
+.dsh-devpanel-sidebar-title {
   font-weight: 600;
 }
 
-.dsh-toolkit-dialog {
+.dsh-devpanel-dialog {
   box-sizing: border-box;
   /* The composer.dock band sits inside InputBar's centered flex root, which
      pads its children by --dsh-composer-side-clearance (16px) each side and
@@ -91,7 +91,7 @@ export const CONSOLE_CSS = `
   color: #e4e4e7;
   font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.dsh-toolkit-dialog-header {
+.dsh-devpanel-dialog-header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -99,7 +99,7 @@ export const CONSOLE_CSS = `
   padding: 6px 12px;
   border-bottom: 1px solid #2c2c31;
 }
-.dsh-toolkit-dialog-header .dsh-toolkit-status {
+.dsh-devpanel-dialog-header .dsh-devpanel-status {
   margin-left: 0;
   flex: 1;
   overflow: hidden;
@@ -107,10 +107,10 @@ export const CONSOLE_CSS = `
   white-space: nowrap;
 }
 
-.dsh-toolkit-title {
+.dsh-devpanel-title {
   font-weight: 600;
 }
-.dsh-toolkit-close {
+.dsh-devpanel-close {
   margin-left: auto;
   padding: 2px 8px;
   border: none;
@@ -120,7 +120,7 @@ export const CONSOLE_CSS = `
   font: inherit;
   cursor: pointer;
 }
-.dsh-toolkit-close:hover {
+.dsh-devpanel-close:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }
@@ -128,7 +128,7 @@ export const CONSOLE_CSS = `
 /* Multi-tab terminal bar: title + shell badge + one pill per session, with
    trailing "+" (new session) and "×" (close panel) actions. The whole bar
    shares the embedded dark surface with the terminal body. */
-.dsh-toolkit-tabs {
+.dsh-devpanel-tabs {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -138,7 +138,7 @@ export const CONSOLE_CSS = `
   overflow-x: auto;
   scrollbar-width: thin;
 }
-.dsh-toolkit-shell-badge {
+.dsh-devpanel-shell-badge {
   flex: none;
   padding: 1px 8px;
   border: 1px solid #3b3b40;
@@ -147,7 +147,7 @@ export const CONSOLE_CSS = `
   font-size: 11px;
   line-height: 1.5;
 }
-.dsh-toolkit-tab {
+.dsh-devpanel-tab {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -161,37 +161,37 @@ export const CONSOLE_CSS = `
   font: inherit;
   cursor: pointer;
 }
-.dsh-toolkit-tab:hover {
+.dsh-devpanel-tab:hover {
   background: #26262c;
 }
-.dsh-toolkit-tab[data-active] {
+.dsh-devpanel-tab[data-active] {
   background: #2c2c33;
   color: #e4e4e7;
 }
-.dsh-toolkit-tab-label {
+.dsh-devpanel-tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dsh-toolkit-tab-close {
+.dsh-devpanel-tab-close {
   flex: none;
   padding: 0 4px;
   border-radius: 3px;
   color: #9b9ba3;
   line-height: 1.4;
 }
-.dsh-toolkit-tab-close:hover {
+.dsh-devpanel-tab-close:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #f26d78;
 }
-.dsh-toolkit-tabs-actions {
+.dsh-devpanel-tabs-actions {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   margin-left: auto;
   flex: none;
 }
-.dsh-toolkit-tab-add {
+.dsh-devpanel-tab-add {
   padding: 1px 8px;
   border: none;
   border-radius: 4px;
@@ -202,50 +202,50 @@ export const CONSOLE_CSS = `
   line-height: 1.5;
   cursor: pointer;
 }
-.dsh-toolkit-tab-add:hover {
+.dsh-devpanel-tab-add:hover {
   background: #26262c;
   color: #e4e4e7;
 }
-.dsh-toolkit-tabs-actions .dsh-toolkit-close {
+.dsh-devpanel-tabs-actions .dsh-devpanel-close {
   margin-left: 0;
   color: #9b9ba3;
 }
-.dsh-toolkit-tabs-actions .dsh-toolkit-close:hover {
+.dsh-devpanel-tabs-actions .dsh-devpanel-close:hover {
   background: #26262c;
   color: #f26d78;
 }
 
 /* Every tab's terminal mount lives in one band; only the active one shows. */
-.dsh-toolkit-terminals {
+.dsh-devpanel-terminals {
   position: relative;
   flex: none;
   height: 240px;
 }
-.dsh-toolkit-terminal {
+.dsh-devpanel-terminal {
   position: absolute;
   inset: 0;
   overflow: hidden;
   display: none;
   background: #1b1b1f;
 }
-.dsh-toolkit-terminal[data-active] {
+.dsh-devpanel-terminal[data-active] {
   display: block;
 }
-.dsh-toolkit-terminal .xterm {
+.dsh-devpanel-terminal .xterm {
   position: relative;
   height: 100%;
   padding: 6px 8px;
   overflow: hidden;
 }
 
-.dsh-toolkit-toolbar {
+.dsh-devpanel-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 4px 0;
   flex: none;
 }
-.dsh-toolkit-toolbar button {
+.dsh-devpanel-toolbar button {
   padding: 2px 10px;
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   border-radius: 4px;
@@ -254,19 +254,19 @@ export const CONSOLE_CSS = `
   font: inherit;
   cursor: pointer;
 }
-.dsh-toolkit-toolbar button:hover {
+.dsh-devpanel-toolbar button:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
 }
-.dsh-toolkit-toolbar button:disabled {
+.dsh-devpanel-toolbar button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-.dsh-toolkit-status {
+.dsh-devpanel-status {
   margin-left: auto;
   color: var(--dsw-alias-label-secondary, #4b5563);
 }
 
-.dsh-toolkit-output {
+.dsh-devpanel-output {
   min-height: 96px;
   max-height: 200px;
   overflow-y: auto;
@@ -278,13 +278,13 @@ export const CONSOLE_CSS = `
   border-radius: 4px;
 }
 
-.dsh-toolkit-input-row {
+.dsh-devpanel-input-row {
   display: flex;
   gap: 8px;
   padding: 6px 0 0;
   flex: none;
 }
-.dsh-toolkit-input-row input {
+.dsh-devpanel-input-row input {
   flex: 1;
   padding: 4px 8px;
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
@@ -293,11 +293,11 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-primary, #111827);
   font: inherit;
 }
-.dsh-toolkit-input-row input:focus {
+.dsh-devpanel-input-row input:focus {
   outline: none;
   border-color: var(--dsw-alias-state-business-primary, #2563eb);
 }
-.dsh-toolkit-terminal .xterm-viewport {
+.dsh-devpanel-terminal .xterm-viewport {
   background-color: #1b1b1f !important;
 }
 /* The chat scroller's classic scrollbar runs the whole column height, so its
@@ -319,33 +319,33 @@ export const CONSOLE_CSS = `
 }
 /* The terminal scrolls inside its own viewport: theme its bar dark too, so no
    engine-default light bar appears within the dark panel. */
-.dsh-toolkit-terminal .xterm-viewport {
+.dsh-devpanel-terminal .xterm-viewport {
   scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
   scrollbar-width: thin;
 }
-.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar {
+.dsh-devpanel-terminal .xterm-viewport::-webkit-scrollbar {
   width: 6px;
 }
-.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar-track {
+.dsh-devpanel-terminal .xterm-viewport::-webkit-scrollbar-track {
   background: transparent;
 }
-.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+.dsh-devpanel-terminal .xterm-viewport::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.22);
   border-radius: 999px;
 }
 /* The multi-tab bar scrolls horizontally when tabs overflow: same dark-theme
    bar, or a default light bar would show under the dark tabs row. */
-.dsh-toolkit-tabs::-webkit-scrollbar {
+.dsh-devpanel-tabs::-webkit-scrollbar {
   height: 6px;
 }
-.dsh-toolkit-tabs::-webkit-scrollbar-track {
+.dsh-devpanel-tabs::-webkit-scrollbar-track {
   background: transparent;
 }
-.dsh-toolkit-tabs::-webkit-scrollbar-thumb {
+.dsh-devpanel-tabs::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.22);
   border-radius: 999px;
 }
-.dsh-toolkit-empty {
+.dsh-devpanel-empty {
   flex: 1;
   display: flex;
   align-items: center;
@@ -353,24 +353,24 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-secondary, #4b5563);
 }
 
-.dsh-toolkit-ai {
+.dsh-devpanel-ai {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 8px 12px;
 }
-.dsh-toolkit-ai-user {
+.dsh-devpanel-ai-user {
   color: var(--dsw-alias-label-secondary, #4b5563);
   margin-bottom: 6px;
 }
-.dsh-toolkit-ai-assistant {
+.dsh-devpanel-ai-assistant {
   color: var(--dsw-alias-label-primary, #111827);
   margin-bottom: 10px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.dsh-toolkit-files {
+.dsh-devpanel-files {
   flex: none;
   max-height: 160px;
   overflow-y: auto;
@@ -380,7 +380,7 @@ export const CONSOLE_CSS = `
   flex-direction: column;
   gap: 2px;
 }
-.dsh-toolkit-file {
+.dsh-devpanel-file {
   text-align: left;
   padding: 3px 8px;
   border: none;
@@ -393,20 +393,20 @@ export const CONSOLE_CSS = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dsh-toolkit-file:hover {
+.dsh-devpanel-file:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
 }
-.dsh-toolkit-file[data-active] {
+.dsh-devpanel-file[data-active] {
   background: var(--dsw-alias-bg-layer-3, #f3f4f6);
   color: var(--dsw-alias-state-business-primary, #2563eb);
 }
-.dsh-toolkit-file-view {
+.dsh-devpanel-file-view {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.dsh-toolkit-file-path {
+.dsh-devpanel-file-path {
   flex: none;
   display: flex;
   align-items: center;
@@ -416,13 +416,13 @@ export const CONSOLE_CSS = `
   font: inherit;
   border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
 }
-.dsh-toolkit-file-path-text {
+.dsh-devpanel-file-path-text {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dsh-toolkit-file-maximize {
+.dsh-devpanel-file-maximize {
   flex: none;
   padding: 0 6px;
   border: none;
@@ -432,11 +432,11 @@ export const CONSOLE_CSS = `
   font: inherit;
   cursor: pointer;
 }
-.dsh-toolkit-file-maximize:hover {
+.dsh-devpanel-file-maximize:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--dsw-alias-label-primary, #111827);
 }
-.dsh-toolkit-file-content {
+.dsh-devpanel-file-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -447,7 +447,7 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-primary, #111827);
   font: inherit;
 }
-.dsh-toolkit-file-image {
+.dsh-devpanel-file-image {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -456,25 +456,25 @@ export const CONSOLE_CSS = `
   align-items: flex-start;
   justify-content: center;
 }
-.dsh-toolkit-file-image img {
+.dsh-devpanel-file-image img {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
 }
-.dsh-toolkit-file-code {
+.dsh-devpanel-file-code {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 8px 12px;
 }
-.dsh-toolkit-file-code pre {
+.dsh-devpanel-file-code pre {
   overflow: auto;
   margin: 0;
   border-radius: 4px;
   background: var(--dsw-alias-bg-layer-1, #f9fafb);
 }
 /* Fullscreen file viewer: fixed overlay covering the whole frame. */
-.dsh-toolkit-file-fullscreen {
+.dsh-devpanel-file-fullscreen {
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -484,7 +484,7 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-primary, #111827);
   font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.dsh-toolkit-file-fullscreen-header {
+.dsh-devpanel-file-fullscreen-header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -492,26 +492,26 @@ export const CONSOLE_CSS = `
   border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   flex: none;
 }
-.dsh-toolkit-file-fullscreen-body {
+.dsh-devpanel-file-fullscreen-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-content,
-.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-code,
-.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-image,
-.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-markdown {
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-content,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-code,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-image,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-markdown {
   padding: 16px 24px;
 }
-.dsh-toolkit-file-markdown {
+.dsh-devpanel-file-markdown {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 8px 12px;
   color: var(--dsw-alias-label-primary, #111827);
 }
-.dsh-toolkit-file-markdown pre {
+.dsh-devpanel-file-markdown pre {
   overflow: auto;
   padding: 8px 10px;
   border-radius: 4px;

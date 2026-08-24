@@ -57,10 +57,10 @@ export type ConsoleHeaderActionsProps =
 export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, t }: ConsoleHeaderActionsProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   return (
-    <div className="dsh-toolkit-header-actions">
+    <div className="dsh-devpanel-header-actions">
       <button
         type="button"
-        className="dsh-toolkit-header-icon"
+        className="dsh-devpanel-header-icon"
         aria-pressed={state.dialogOpen}
         aria-label={t('header.terminate.aria')}
         title={t('header.terminate.aria')}
@@ -70,7 +70,7 @@ export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, t }: Co
       </button>
       <button
         type="button"
-        className="dsh-toolkit-header-icon"
+        className="dsh-devpanel-header-icon"
         aria-pressed={state.sidebarOpen}
         aria-label={t('header.sidebar.aria')}
         title={t('header.sidebar.aria')}

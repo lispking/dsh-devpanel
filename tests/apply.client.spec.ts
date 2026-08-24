@@ -139,7 +139,7 @@ describe('dsh-devpanel client apply', () => {
     await apply(ctx as never)
     expect(nodes).toHaveLength(1)
     expect(nodes[0]?.dataset.plugin).toBe(CONSOLE_STYLE_PLUGIN)
-    expect(nodes[0]?.textContent).toContain('.dsh-toolkit-sidebar')
+    expect(nodes[0]?.textContent).toContain('.dsh-devpanel-sidebar')
 
     // The stylesheet is registered through ctx.effect, so its cleanup runs on
     // fiber disposal (the apply disposer only unmounts the Remote namespace).

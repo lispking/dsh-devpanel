@@ -114,16 +114,16 @@ describe('TerminateDialog tab lifecycle', () => {
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
       await act(async () => {})
-      expect(container.querySelectorAll('.dsh-toolkit-tab')).toHaveLength(1)
+      expect(container.querySelectorAll('.dsh-devpanel-tab')).toHaveLength(1)
 
       // Close the last (only) tab: the whole panel closes.
-      const closeButton = container.querySelector<HTMLElement>('.dsh-toolkit-tab-close')
+      const closeButton = container.querySelector<HTMLElement>('.dsh-devpanel-tab-close')
       expect(closeButton).not.toBeNull()
       await act(async () => {
         closeButton?.click()
       })
       expect(store.getSnapshot().dialogOpen).toBe(false)
-      expect(container.querySelector('.dsh-toolkit-dialog')).toBeNull()
+      expect(container.querySelector('.dsh-devpanel-dialog')).toBeNull()
 
       // Reopen: a fresh default tab must spawn AND render again.
       await act(async () => {
@@ -131,7 +131,7 @@ describe('TerminateDialog tab lifecycle', () => {
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
       await act(async () => {})
-      expect(container.querySelectorAll('.dsh-toolkit-tab')).toHaveLength(1)
+      expect(container.querySelectorAll('.dsh-devpanel-tab')).toHaveLength(1)
     } finally {
       await act(async () => { root.unmount() })
     }
@@ -166,13 +166,13 @@ describe('TerminateDialog tab lifecycle', () => {
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
       await act(async () => {})
-      expect(container.querySelectorAll('.dsh-toolkit-tab')).toHaveLength(1)
+      expect(container.querySelectorAll('.dsh-devpanel-tab')).toHaveLength(1)
 
       // Close the panel the way the header button does: toggle dialogOpen only.
       await act(async () => {
         store.update(draft => { draft.dialogOpen = false })
       })
-      expect(container.querySelector('.dsh-toolkit-dialog')).toBeNull()
+      expect(container.querySelector('.dsh-devpanel-dialog')).toBeNull()
 
       // Reopen: a fresh default tab must spawn again.
       await act(async () => {
@@ -180,7 +180,7 @@ describe('TerminateDialog tab lifecycle', () => {
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
       await act(async () => {})
-      expect(container.querySelectorAll('.dsh-toolkit-tab')).toHaveLength(1)
+      expect(container.querySelectorAll('.dsh-devpanel-tab')).toHaveLength(1)
     } finally {
       await act(async () => { root.unmount() })
     }
