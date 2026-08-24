@@ -1,12 +1,12 @@
 /**
- * dsh-toolkit host half: one TypertRemoteService exposing a user-facing PTY
+ * dsh-devpanel host half: one TypertRemoteService exposing a user-facing PTY
  * terminal panel to the browser client. Wraps `ctx.subprocess.spawnTerminal`
  * (the real PTY primitive) with owner-free session records: the browser can
  * spawn, write, read deltas, signal the foreground group, terminate, list,
  * and dispose sessions. The Gateway auto-discovers this service through its
  * `typertRemote` binding, so the client calls `terminalPanel/*` endpoints
  * with no harness changes.
- * @module dsh-toolkit
+ * @module dsh-devpanel
  */
 
 import { randomUUID } from 'node:crypto'
@@ -75,7 +75,7 @@ interface SessionRecord {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** User-facing terminal panel service (dsh-toolkit). */
+    /** User-facing terminal panel service (dsh-devpanel). */
     terminalPanel: TerminalPanelService
   }
 }

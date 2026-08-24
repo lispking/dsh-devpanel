@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown'
 
 /** Plugin id used by the client closure-factory loader registration. */
-const PLUGIN_ID = 'dsh-toolkit'
+const PLUGIN_ID = 'dsh-devpanel'
 
 /**
  * Module-table specifiers the client bundle must keep EXTERNAL: they resolve

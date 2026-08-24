@@ -1,5 +1,5 @@
 /**
- * dsh-toolkit client plugin body: mounts the terminalPanel Remote
+ * dsh-devpanel client plugin body: mounts the terminalPanel Remote
  * contribution, registers the console locale, injects the panel stylesheet,
  * and contributes THREE slots — the session-header icon actions (AI-output
  * sidebar toggle + Terminate dialog toggle), the right AI-output sidebar
@@ -8,7 +8,7 @@
  * created here, so the header icons and their surfaces agree on open state.
  * All contributions ride ctx effects; plugin unload unmounts the Remote
  * namespace, removes the style tag, and unregisters the slots.
- * @module dsh-toolkit/client
+ * @module dsh-devpanel/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
@@ -44,7 +44,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
 
   const store = createConsoleStore()
 
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-toolkit: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-devpanel: dictionaries')
   installConsoleStyles(ctx)
 
   // This plugin itself mounts the `remote.terminalPanel` namespace above, so

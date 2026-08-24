@@ -23,7 +23,7 @@ export type ConsoleKey =
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** The dsh-toolkit header actions, sidebar, and Terminate dialog copy. */
+    /** The dsh-devpanel header actions, sidebar, and Terminate dialog copy. */
     'toolkit': ConsoleKey
   }
 }

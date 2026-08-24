@@ -4,7 +4,7 @@
  * the client apply and injected into every registration (header actions,
  * sidebar, dialog) so they all agree on one store instance without a store
  * seat.
- * @module dsh-toolkit/client/console-store
+ * @module dsh-devpanel/client/console-store
  */
 
 import {

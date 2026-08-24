@@ -162,7 +162,7 @@ describe('TerminalPanelService', () => {
   })
 
   it('reads text files as kind "text" and image files as a base64 data URL', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'dsh-toolkit-'))
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-devpanel-'))
     try {
       writeFileSync(join(dir, 'note.txt'), 'hello console')
       // Minimal 1x1 PNG so the image branch reads real bytes.

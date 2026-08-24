@@ -1,8 +1,8 @@
-# dsh-toolkit
+# dsh-devpanel
 
 > A developer toolkit for the DeepSeek Harness (DSH) web console: a real multi-tab PTY terminal plus an AI-output file browser.
 
-`dsh-toolkit` is a plugin for the DeepSeek Harness that brings two things into the browser console:
+`dsh-devpanel` is a plugin for the DeepSeek Harness that brings two things into the browser console:
 
 - **Terminal panel** — a multi-tab, real PTY terminal docked under the composer. Start and stop processes, type commands by hand, and watch live output, just like a native terminal.
 - **AI-output sidebar** — a right-hand file viewer that lists every file the AI wrote or edited in the current session, with syntax highlighting, Markdown rendering, and image preview.
@@ -57,7 +57,7 @@ The plugin is a two-face bundle, mirroring the harness client preset:
 
 ## Installation
 
-`dsh-toolkit` is developed as a workspace package next to the harness source. Requirements:
+`dsh-devpanel` is developed as a workspace package next to the harness source. Requirements:
 
 - Node `^22.19.0 || >=24.0.0`
 - pnpm workspace including `../deepseek-harness` (see `pnpm-workspace.yaml`)
@@ -65,10 +65,10 @@ The plugin is a two-face bundle, mirroring the harness client preset:
 ```bash
 # from the workspace root
 pnpm install
-pnpm --filter dsh-toolkit build
+pnpm --filter dsh-devpanel build
 ```
 
-The plugin contributes a bundle row via `cordis.patch.yml` (`{ id: toolkit, name: dsh-toolkit }`); enable it in a harness profile that lists this bundle. The published package exposes four entry points:
+The plugin contributes a bundle row via `cordis.patch.yml` (`{ id: toolkit, name: dsh-devpanel }`); enable it in a harness profile that lists this bundle. The published package exposes four entry points:
 
 | Export | Path | Purpose |
 | --- | --- | --- |

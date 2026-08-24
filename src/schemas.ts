@@ -3,7 +3,7 @@
  * the host-face Typert manifest (`typert.host.ts`) and the client-face
  * contribution (`client/remote.ts`), so a wire-shape change is a single edit
  * instead of two hand-synced copies. Pure data: no Node or harness runtime.
- * @module dsh-toolkit/schemas
+ * @module dsh-devpanel/schemas
  */
 
 import { z } from 'zod'

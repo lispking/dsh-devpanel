@@ -5,13 +5,13 @@
  * actually exist in the theme are referenced (label-primary/secondary,
  * bg-layer-1/2/3, border-l2, interactive-bg-hover, state-business-primary,
  * state-error-primary), with neutral fallbacks for off-theme contexts.
- * @module dsh-toolkit/client/console.css
+ * @module dsh-devpanel/client/console.css
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 
 /** Style-tag identity used for diagnostics and test assertions. */
-export const CONSOLE_STYLE_PLUGIN = 'dsh-toolkit/styles'
+export const CONSOLE_STYLE_PLUGIN = 'dsh-devpanel/styles'
 
 /** Terminal console styles: header icons, right AI sidebar, Terminate dialog. */
 export const CONSOLE_CSS = `

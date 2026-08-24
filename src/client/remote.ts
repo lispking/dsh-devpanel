@@ -6,9 +6,9 @@
  * TerminalPanelService through its `typertRemote` binding and reflects the
  * `@Remote` methods, so this contribution is the only client-side artifact.
  *
- * Wire shapes come from dsh-toolkit/types (the shared JSON vocabulary); the
+ * Wire shapes come from dsh-devpanel/types (the shared JSON vocabulary); the
  * zod schemas below are the strict boundary codecs the client api requires.
- * @module dsh-toolkit/client/remote
+ * @module dsh-devpanel/client/remote
  */
 
 import { z } from 'zod'
@@ -55,7 +55,7 @@ function descriptor(
   cancellation?: { parameter: 'signal' },
 ): TypertRemoteContribution['descriptors'][number] {
   return {
-    id: `dsh-toolkit#${NAMESPACE}/${method}`,
+    id: `dsh-devpanel#${NAMESPACE}/${method}`,
     service: NAMESPACE,
     namespace: NAMESPACE,
     method,
@@ -81,34 +81,34 @@ function descriptor(
 
 /** Generated-style contribution consumed by `ctx.remote.$mount`. */
 export const TYPERT_REMOTE: TypertRemoteContribution = {
-  package: 'dsh-toolkit',
+  package: 'dsh-devpanel',
   descriptors: [
     descriptor('spawn', [
-      { name: 'request', schema: spawnRequestSchema, typeSymbol: 'dsh-toolkit#terminalPanel/spawn:request' },
-    ], spawnResultSchema, 'dsh-toolkit#terminalPanel/spawn:result'),
+      { name: 'request', schema: spawnRequestSchema, typeSymbol: 'dsh-devpanel#terminalPanel/spawn:request' },
+    ], spawnResultSchema, 'dsh-devpanel#terminalPanel/spawn:result'),
     descriptor('write', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/write:id' },
-      { name: 'text', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/write:text' },
-      { name: 'submit', schema: z.boolean(), typeSymbol: 'dsh-toolkit#terminalPanel/write:submit' },
-    ], writeResultSchema, 'dsh-toolkit#terminalPanel/write:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/write:id' },
+      { name: 'text', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/write:text' },
+      { name: 'submit', schema: z.boolean(), typeSymbol: 'dsh-devpanel#terminalPanel/write:submit' },
+    ], writeResultSchema, 'dsh-devpanel#terminalPanel/write:result'),
     descriptor('read', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/read:id' },
-    ], readResultSchema, 'dsh-toolkit#terminalPanel/read:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/read:id' },
+    ], readResultSchema, 'dsh-devpanel#terminalPanel/read:result'),
     descriptor('signal', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/signal:id' },
-      { name: 'sig', schema: signalSchema, typeSymbol: 'dsh-toolkit#terminalPanel/signal:sig' },
-    ], signalResultSchema, 'dsh-toolkit#terminalPanel/signal:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/signal:id' },
+      { name: 'sig', schema: signalSchema, typeSymbol: 'dsh-devpanel#terminalPanel/signal:sig' },
+    ], signalResultSchema, 'dsh-devpanel#terminalPanel/signal:result'),
     descriptor('terminate', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/terminate:id' },
-    ], terminateResultSchema, 'dsh-toolkit#terminalPanel/terminate:result'),
-    descriptor('list', [], listResultSchema, 'dsh-toolkit#terminalPanel/list:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/terminate:id' },
+    ], terminateResultSchema, 'dsh-devpanel#terminalPanel/terminate:result'),
+    descriptor('list', [], listResultSchema, 'dsh-devpanel#terminalPanel/list:result'),
     descriptor('dispose', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/dispose:id' },
-    ], disposeResultSchema, 'dsh-toolkit#terminalPanel/dispose:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/dispose:id' },
+    ], disposeResultSchema, 'dsh-devpanel#terminalPanel/dispose:result'),
     descriptor('readFile', [
-      { name: 'path', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/readFile:path' },
-      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-toolkit#terminalPanel/readFile:cwd' },
-    ], readFileResultSchema, 'dsh-toolkit#terminalPanel/readFile:result', { parameter: 'signal' }),
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/readFile:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/readFile:cwd' },
+    ], readFileResultSchema, 'dsh-devpanel#terminalPanel/readFile:result', { parameter: 'signal' }),
   ],
 }
 

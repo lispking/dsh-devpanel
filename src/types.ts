@@ -1,10 +1,10 @@
 /**
- * Wire vocabulary of the dsh-toolkit terminal panel: the JSON-safe shapes
+ * Wire vocabulary of the dsh-devpanel terminal panel: the JSON-safe shapes
  * crossing the Typert Remote boundary between the browser client and the
  * host's TerminalPanelService. No Node or harness runtime imports — this
  * module is shared by the host service (encode) and the client contribution
  * (typed descriptors), so it stays pure data.
- * @module dsh-toolkit/types
+ * @module dsh-devpanel/types
  */
 
 /** Terminal signal the foreground process group accepts (mirrors SubprocessTerminalSignal). */

@@ -1,5 +1,5 @@
 /**
- * Terminate dialog for dsh-toolkit: the conversation.composer.dock entry
+ * Terminate dialog for dsh-devpanel: the conversation.composer.dock entry
  * docked under the composer. A native file-browser style multi-tab terminal:
  * a tab bar (title + shell badge + one tab per PTY session with its own
  * close button, plus a trailing "+" to spawn a new session and "×" to close
@@ -9,7 +9,7 @@
  * straight into the PTY (term.onData -> remote.write), and the default shell
  * is the system login shell. New sessions spawn in the current session's
  * project directory (or the user home for a fresh session).
- * @module dsh-toolkit/client/TerminateDialog
+ * @module dsh-devpanel/client/TerminateDialog
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -242,7 +242,7 @@ function TerminateView({
         return
       }
       if (!result.ok) {
-        terminal.write(`\r\n[dsh-toolkit] spawn failed: ${result.error?.message ?? 'unknown'}\r\n`)
+        terminal.write(`\r\n[dsh-devpanel] spawn failed: ${result.error?.message ?? 'unknown'}\r\n`)
         return
       }
       // Native input path: every keystroke (including Enter as \r) flows into

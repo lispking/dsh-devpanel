@@ -1,5 +1,5 @@
 /**
- * Host-face Typert manifest for dsh-toolkit, consumed by the typert-loader.
+ * Host-face Typert manifest for dsh-devpanel, consumed by the typert-loader.
  *
  * The loader registers every `./typert`-exporting package's invocations into
  * the gateway's `typert.local` table, which is what `claimsEndpoint` consults
@@ -13,7 +13,7 @@
  * The shape mirrors generator output (`@deepseek-ai/dsh-typert-generator`);
  * wire vocabulary and zod schemas must match the host service methods and the
  * client-side contribution in `./client/remote.ts`.
- * @module dsh-toolkit/typert.host
+ * @module dsh-devpanel/typert.host
  */
 
 import { z } from 'zod'
@@ -46,7 +46,7 @@ function invocation(
   cancellation?: { parameter: 'signal' },
 ): TypertContribution['invocations'][number] {
   return {
-    id: `dsh-toolkit#${NAMESPACE}/${method}`,
+    id: `dsh-devpanel#${NAMESPACE}/${method}`,
     service: NAMESPACE,
     namespace: NAMESPACE,
     method,
@@ -72,36 +72,36 @@ function invocation(
 
 /** Host-face contribution registered by the typert-loader. */
 export const TYPERT: TypertContribution = {
-  package: 'dsh-toolkit',
+  package: 'dsh-devpanel',
   face: 'host',
   schemas: [],
   invocations: [
     invocation('spawn', [
-      { name: 'request', schema: spawnRequestSchema, typeSymbol: 'dsh-toolkit#terminalPanel/spawn:request' },
-    ], spawnResultSchema, 'dsh-toolkit#terminalPanel/spawn:result'),
+      { name: 'request', schema: spawnRequestSchema, typeSymbol: 'dsh-devpanel#terminalPanel/spawn:request' },
+    ], spawnResultSchema, 'dsh-devpanel#terminalPanel/spawn:result'),
     invocation('write', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/write:id' },
-      { name: 'text', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/write:text' },
-      { name: 'submit', schema: z.boolean(), typeSymbol: 'dsh-toolkit#terminalPanel/write:submit' },
-    ], writeResultSchema, 'dsh-toolkit#terminalPanel/write:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/write:id' },
+      { name: 'text', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/write:text' },
+      { name: 'submit', schema: z.boolean(), typeSymbol: 'dsh-devpanel#terminalPanel/write:submit' },
+    ], writeResultSchema, 'dsh-devpanel#terminalPanel/write:result'),
     invocation('read', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/read:id' },
-    ], readResultSchema, 'dsh-toolkit#terminalPanel/read:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/read:id' },
+    ], readResultSchema, 'dsh-devpanel#terminalPanel/read:result'),
     invocation('signal', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/signal:id' },
-      { name: 'sig', schema: signalSchema, typeSymbol: 'dsh-toolkit#terminalPanel/signal:sig' },
-    ], signalResultSchema, 'dsh-toolkit#terminalPanel/signal:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/signal:id' },
+      { name: 'sig', schema: signalSchema, typeSymbol: 'dsh-devpanel#terminalPanel/signal:sig' },
+    ], signalResultSchema, 'dsh-devpanel#terminalPanel/signal:result'),
     invocation('terminate', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/terminate:id' },
-    ], terminateResultSchema, 'dsh-toolkit#terminalPanel/terminate:result'),
-    invocation('list', [], listResultSchema, 'dsh-toolkit#terminalPanel/list:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/terminate:id' },
+    ], terminateResultSchema, 'dsh-devpanel#terminalPanel/terminate:result'),
+    invocation('list', [], listResultSchema, 'dsh-devpanel#terminalPanel/list:result'),
     invocation('dispose', [
-      { name: 'id', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/dispose:id' },
-    ], disposeResultSchema, 'dsh-toolkit#terminalPanel/dispose:result'),
+      { name: 'id', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/dispose:id' },
+    ], disposeResultSchema, 'dsh-devpanel#terminalPanel/dispose:result'),
     invocation('readFile', [
-      { name: 'path', schema: z.string(), typeSymbol: 'dsh-toolkit#terminalPanel/readFile:path' },
-      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-toolkit#terminalPanel/readFile:cwd' },
-    ], readFileResultSchema, 'dsh-toolkit#terminalPanel/readFile:result', { parameter: 'signal' }),
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/readFile:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/readFile:cwd' },
+    ], readFileResultSchema, 'dsh-devpanel#terminalPanel/readFile:result', { parameter: 'signal' }),
   ],
   model: {
     services: [],

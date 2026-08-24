@@ -1,9 +1,9 @@
 /**
- * Session-header actions for dsh-toolkit: two icon buttons beside the
+ * Session-header actions for dsh-devpanel: two icon buttons beside the
  * Session Log control — the AI-output sidebar toggle and the Terminate
  * dialog toggle. Both flip the shared console store; the sidebar and the
  * dialog render their own surfaces through their own slots.
- * @module dsh-toolkit/client/ConsoleHeaderActions
+ * @module dsh-devpanel/client/ConsoleHeaderActions
  */
 
 import { useSyncExternalStore } from 'react'

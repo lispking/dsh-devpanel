@@ -1,8 +1,8 @@
-# dsh-toolkit
+# dsh-devpanel
 
 > DeepSeek Harness（DSH）开发者工具箱：为 Web 控制台带来真实的 PTY 多标签终端，以及 AI 输出文件浏览器。
 
-`dsh-toolkit` 是 DeepSeek Harness 的一个插件，为浏览器控制台带来两大能力：
+`dsh-devpanel` 是 DeepSeek Harness 的一个插件，为浏览器控制台带来两大能力：
 
 - **终端面板** —— 停靠在输入框下方的多标签真实 PTY 终端。可以开始/终止进程、手工输入命令，实时查看输出，体验和原生终端一致。
 - **AI 输出侧边栏** —— 右侧文件浏览器，列出当前会话中 AI 写入或编辑过的所有文件，支持语法高亮、Markdown 渲染和图片预览。
@@ -57,7 +57,7 @@
 
 ## 安装
 
-`dsh-toolkit` 作为 workspace 包与 harness 源码并列开发。环境要求：
+`dsh-devpanel` 作为 workspace 包与 harness 源码并列开发。环境要求：
 
 - Node `^22.19.0 || >=24.0.0`
 - 包含 `../deepseek-harness` 的 pnpm workspace（见 `pnpm-workspace.yaml`）
@@ -65,10 +65,10 @@
 ```bash
 # 在 workspace 根目录
 pnpm install
-pnpm --filter dsh-toolkit build
+pnpm --filter dsh-devpanel build
 ```
 
-插件通过 `cordis.patch.yml` 贡献一条 bundle 记录（`{ id: toolkit, name: dsh-toolkit }`）；在列出该 bundle 的 harness profile 中启用即可。发布包暴露四个入口：
+插件通过 `cordis.patch.yml` 贡献一条 bundle 记录（`{ id: toolkit, name: dsh-devpanel }`）；在列出该 bundle 的 harness profile 中启用即可。发布包暴露四个入口：
 
 | Export | 路径 | 用途 |
 | --- | --- | --- |

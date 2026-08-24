@@ -66,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('dsh-toolkit client apply', () => {
+describe('dsh-devpanel client apply', () => {
   it('declares the Remote, slot registry, locale, sessions, and layout services', () => {
     expect(inject).toEqual(['remote', 'slots', 'locale', 'sessions', 'layout'])
   })

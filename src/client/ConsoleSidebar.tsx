@@ -1,12 +1,12 @@
 /**
- * Right-side file viewer: the details-column entry for dsh-toolkit. Lists the
+ * Right-side file viewer: the details-column entry for dsh-devpanel. Lists the
  * files the current session's AI output touched (from tool-call locations and
  * tool-result paths), and shows the selected file's content in the browser
  * through the terminalPanel readFile Remote. Renders inside the harness
  * layout's right details column (inline, non-floating, squeezes the center
  * column) and is driven by the shared store; while closed it renders nothing
  * but stays mounted (slot entries keep identity).
- * @module dsh-toolkit/client/ConsoleSidebar
+ * @module dsh-devpanel/client/ConsoleSidebar
  */
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
