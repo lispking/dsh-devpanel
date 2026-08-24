@@ -1,0 +1,5 @@
+# dsh-toolkit — bundle layer contributed when a profile lists this bundle.
+# A patch replaces the targeted row's whole config, so keep this row minimal.
+- insert:
+  - id: toolkit
+    name: dsh-toolkit

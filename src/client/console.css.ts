@@ -1,0 +1,730 @@
+/**
+ * Console stylesheet: one injected <style> tag (the client bundle has no CSS
+ * pipeline, so styles ship as an inline string — same contract as dsh-qq-skin's
+ * layout layer). Colors ride the `--dsw-*` token layer; only tokens that
+ * actually exist in the theme are referenced (label-primary/secondary,
+ * bg-layer-1/2/3, border-l2, interactive-bg-hover, state-business-primary,
+ * state-error-primary), with neutral fallbacks for off-theme contexts.
+ * @module dsh-toolkit/client/console.css
+ */
+
+import type { Context } from '@deepseek-ai/cordis'
+
+/** Style-tag identity used for diagnostics and test assertions. */
+export const CONSOLE_STYLE_PLUGIN = 'dsh-toolkit/styles'
+
+/** Terminal console styles: header icons, right AI sidebar, Terminate dialog. */
+export const CONSOLE_CSS = `
+.dsh-toolkit-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.dsh-toolkit-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  cursor: pointer;
+}
+.dsh-toolkit-header-icon:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-toolkit-header-icon[aria-pressed='true'] {
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+
+.dsh-toolkit-sidebar {
+  /* Fills the harness layout's right details column (the column owns width
+     and geometry; this only needs the full-height column layout and its
+     internal scrolling regions). */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-layer-2, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.dsh-toolkit-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  flex: none;
+}
+.dsh-toolkit-sidebar-title {
+  font-weight: 600;
+}
+
+.dsh-toolkit-dialog {
+  box-sizing: border-box;
+  /* The composer.dock band sits inside InputBar's centered flex root, which
+     pads its children by --dsh-composer-side-clearance (16px) each side and
+     8px below; the whole stack rides the conversation scroller, which
+     reserves the scrollbar gutter on the right (--dsh-scrollbar-width, 8px)
+     via scrollbar-gutter: stable. The terminal must span the WHOLE band
+     edge-to-edge, so the negative margins cancel that outer padding AND the
+     gutter (with an extra 8px buffer for engine scrollbar-width variance;
+     the extra bleeds past the scroller's padding box, where it is clipped).
+     Only +/− calc operators are used — the '*' form is not supported in
+     every embedded WebView and drops the whole declaration. Note the gutter
+     itself can never be covered by width alone: the classic scrollbar's
+     track paints above all content, so the scroller's track is themed
+     transparent below (see the [data-conversation-scroll] rules). */
+  width: calc(100% + var(--dsh-composer-side-clearance, 16px) + var(--dsh-composer-side-clearance, 16px) + var(--dsh-scrollbar-width, 8px) + 8px);
+  margin: 0 0 -8px;
+  margin-left: calc(0px - var(--dsh-composer-side-clearance, 16px));
+  margin-right: calc(0px - var(--dsh-composer-side-clearance, 16px) - var(--dsh-scrollbar-width, 8px) - 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  background: #1b1b1f;
+  color: #e4e4e7;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.dsh-toolkit-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 6px 12px;
+  border-bottom: 1px solid #2c2c31;
+}
+.dsh-toolkit-dialog-header .dsh-toolkit-status {
+  margin-left: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dsh-toolkit-title {
+  font-weight: 600;
+}
+.dsh-toolkit-close {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-toolkit-close:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
+
+/* Multi-tab terminal bar: title + shell badge + one pill per session, with
+   trailing "+" (new session) and "×" (close panel) actions. The whole bar
+   shares the embedded dark surface with the terminal body. */
+.dsh-toolkit-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2c2c31;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.dsh-toolkit-shell-badge {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid #3b3b40;
+  border-radius: 999px;
+  color: #9b9ba3;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.dsh-toolkit-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 180px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #9b9ba3;
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-toolkit-tab:hover {
+  background: #26262c;
+}
+.dsh-toolkit-tab[data-active] {
+  background: #2c2c33;
+  color: #e4e4e7;
+}
+.dsh-toolkit-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsh-toolkit-tab-close {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #9b9ba3;
+  line-height: 1.4;
+}
+.dsh-toolkit-tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f26d78;
+}
+.dsh-toolkit-tabs-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: none;
+}
+.dsh-toolkit-tab-add {
+  padding: 1px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #9b9ba3;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.dsh-toolkit-tab-add:hover {
+  background: #26262c;
+  color: #e4e4e7;
+}
+.dsh-toolkit-tabs-actions .dsh-toolkit-close {
+  margin-left: 0;
+  color: #9b9ba3;
+}
+.dsh-toolkit-tabs-actions .dsh-toolkit-close:hover {
+  background: #26262c;
+  color: #f26d78;
+}
+
+/* Every tab's terminal mount lives in one band; only the active one shows. */
+.dsh-toolkit-terminals {
+  position: relative;
+  flex: none;
+  height: 240px;
+}
+.dsh-toolkit-terminal {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: none;
+  background: #1b1b1f;
+}
+.dsh-toolkit-terminal[data-active] {
+  display: block;
+}
+.dsh-toolkit-terminal .xterm {
+  position: relative;
+  height: 100%;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+
+.dsh-toolkit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex: none;
+}
+.dsh-toolkit-toolbar button {
+  padding: 2px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3, #f3f4f6);
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-toolkit-toolbar button:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-toolkit-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dsh-toolkit-status {
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+
+.dsh-toolkit-output {
+  min-height: 96px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--dsw-alias-bg-layer-1, #f9fafb);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+}
+
+.dsh-toolkit-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0 0;
+  flex: none;
+}
+.dsh-toolkit-input-row input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3, #f3f4f6);
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+}
+.dsh-toolkit-input-row input:focus {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-toolkit-terminal .xterm-viewport {
+  background-color: #1b1b1f !important;
+}
+/* The chat scroller's classic scrollbar runs the whole column height, so its
+   light track and thumb read as a white strip beside the dark terminal band.
+   Hide BOTH fully (the dialog already bleeds under the reserved gutter, so
+   the dark surface fills edge-to-edge). The scrollbar keeps its layout width
+   — no width:0 — so the reserved gutter and the whole column geometry stay
+   put; the transcript still scrolls by wheel/touchpad. Doubled attribute
+   selector raises specificity against the harness theme sheet; !important
+   wins the cascade regardless of injection order. */
+[data-conversation-scroll][data-conversation-scroll] {
+  scrollbar-color: transparent transparent !important;
+}
+[data-conversation-scroll][data-conversation-scroll]::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+[data-conversation-scroll][data-conversation-scroll]::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
+/* The terminal scrolls inside its own viewport: theme its bar dark too, so no
+   engine-default light bar appears within the dark panel. */
+.dsh-toolkit-terminal .xterm-viewport {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-width: thin;
+}
+.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dsh-toolkit-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+/* The multi-tab bar scrolls horizontally when tabs overflow: same dark-theme
+   bar, or a default light bar would show under the dark tabs row. */
+.dsh-toolkit-tabs::-webkit-scrollbar {
+  height: 6px;
+}
+.dsh-toolkit-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dsh-toolkit-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+.dsh-toolkit-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+
+.dsh-toolkit-ai {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+.dsh-toolkit-ai-user {
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  margin-bottom: 6px;
+}
+.dsh-toolkit-ai-assistant {
+  color: var(--dsw-alias-label-primary, #111827);
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dsh-toolkit-files {
+  flex: none;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dsh-toolkit-file {
+  text-align: left;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsh-toolkit-file:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-toolkit-file[data-active] {
+  background: var(--dsw-alias-bg-layer-3, #f3f4f6);
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-toolkit-file-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dsh-toolkit-file-path {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+}
+.dsh-toolkit-file-path-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsh-toolkit-file-maximize {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-toolkit-file-maximize:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-toolkit-file-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+}
+.dsh-toolkit-file-image {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.dsh-toolkit-file-image img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.dsh-toolkit-file-code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+}
+.dsh-toolkit-file-code pre {
+  overflow: auto;
+  margin: 0;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1, #f9fafb);
+}
+/* Fullscreen file viewer: fixed overlay covering the whole frame. */
+.dsh-toolkit-file-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-layer-2, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.dsh-toolkit-file-fullscreen-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  flex: none;
+}
+.dsh-toolkit-file-fullscreen-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-content,
+.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-code,
+.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-image,
+.dsh-toolkit-file-fullscreen-body .dsh-toolkit-file-markdown {
+  padding: 16px 24px;
+}
+.dsh-toolkit-file-markdown {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-toolkit-file-markdown pre {
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1, #f9fafb);
+}
+
+/* xterm.js core styles (inlined from @xterm/xterm/css/xterm.css — the client
+   bundle has no CSS pipeline, so the theme ships this string instead). */
+.xterm {
+    cursor: text;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+}
+.xterm.focus,
+.xterm:focus {
+    outline: none;
+}
+.xterm .xterm-helpers {
+    position: absolute;
+    top: 0;
+    z-index: 5;
+}
+.xterm .xterm-helper-textarea {
+    padding: 0;
+    border: 0;
+    margin: 0;
+    position: absolute;
+    opacity: 0;
+    left: -9999em;
+    top: 0;
+    width: 0;
+    height: 0;
+    z-index: -5;
+    white-space: nowrap;
+    overflow: hidden;
+    resize: none;
+}
+.xterm .composition-view {
+    background: #000;
+    color: #FFF;
+    display: none;
+    position: absolute;
+    white-space: nowrap;
+    z-index: 1;
+}
+.xterm .composition-view.active {
+    display: block;
+}
+.xterm .xterm-viewport {
+    background-color: #000;
+    overflow-y: scroll;
+    cursor: default;
+    position: absolute;
+    right: 0;
+    left: 0;
+    top: 0;
+    bottom: 0;
+}
+.xterm .xterm-screen {
+    position: relative;
+}
+.xterm .xterm-screen canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+.xterm-char-measure-element {
+    display: inline-block;
+    visibility: hidden;
+    position: absolute;
+    top: 0;
+    left: -9999em;
+    line-height: normal;
+}
+.xterm.enable-mouse-events {
+    cursor: default;
+}
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
+    cursor: pointer;
+}
+.xterm.column-select.focus {
+    cursor: crosshair;
+}
+.xterm .xterm-accessibility:not(.debug),
+.xterm .xterm-message {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 10;
+    color: transparent;
+    pointer-events: none;
+}
+.xterm .xterm-accessibility-tree:not(.debug) *::selection {
+  color: transparent;
+}
+.xterm .xterm-accessibility-tree {
+  font-family: monospace;
+  user-select: text;
+  white-space: pre;
+}
+.xterm .xterm-accessibility-tree > div {
+  transform-origin: left;
+  width: fit-content;
+}
+.xterm .live-region {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+.xterm-dim {
+    opacity: 1 !important;
+}
+.xterm-underline-1 { text-decoration: underline; }
+.xterm-underline-2 { text-decoration: double underline; }
+.xterm-underline-3 { text-decoration: wavy underline; }
+.xterm-underline-4 { text-decoration: dotted underline; }
+.xterm-underline-5 { text-decoration: dashed underline; }
+.xterm-overline {
+    text-decoration: overline;
+}
+.xterm-overline.xterm-underline-1 { text-decoration: overline underline; }
+.xterm-overline.xterm-underline-2 { text-decoration: overline double underline; }
+.xterm-overline.xterm-underline-3 { text-decoration: overline wavy underline; }
+.xterm-overline.xterm-underline-4 { text-decoration: overline dotted underline; }
+.xterm-overline.xterm-underline-5 { text-decoration: overline dashed underline; }
+.xterm-strikethrough {
+    text-decoration: line-through;
+}
+.xterm-screen .xterm-decoration-container .xterm-decoration {
+	z-index: 6;
+	position: absolute;
+}
+.xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer {
+	z-index: 7;
+}
+.xterm-decoration-overview-ruler {
+    z-index: 8;
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+}
+.xterm-decoration-top {
+    z-index: 2;
+    position: relative;
+}
+.xterm .xterm-scrollable-element > .scrollbar {
+    cursor: default;
+}
+.xterm .xterm-scrollable-element > .scrollbar > .scra {
+	cursor: pointer;
+	font-size: 11px !important;
+}
+.xterm .xterm-scrollable-element > .visible {
+	opacity: 1;
+	background: rgba(0,0,0,0);
+	transition: opacity 100ms linear;
+	z-index: 11;
+}
+.xterm .xterm-scrollable-element > .invisible {
+	opacity: 0;
+	pointer-events: none;
+}
+.xterm .xterm-scrollable-element > .invisible.fade {
+	transition: opacity 800ms linear;
+}
+.xterm .xterm-scrollable-element > .shadow {
+	position: absolute;
+	display: none;
+}
+.xterm .xterm-scrollable-element > .shadow.top {
+	display: block;
+	top: 0;
+	left: 3px;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow, #000) 0 6px 6px -6px inset;
+}
+.xterm .xterm-scrollable-element > .shadow.left {
+	display: block;
+	top: 3px;
+	left: 0;
+	height: 100%;
+	width: 3px;
+	box-shadow: var(--vscode-scrollbar-shadow, #000) 6px 0 6px -6px inset;
+}
+.xterm .xterm-scrollable-element > .shadow.top-left-corner {
+	display: block;
+	top: 0;
+	left: 0;
+	height: 3px;
+	width: 3px;
+}
+.xterm .xterm-scrollable-element > .shadow.top.left {
+	box-shadow: var(--vscode-scrollbar-shadow, #000) 6px 0 6px -6px inset;
+}
+`
+
+/** Inject the console stylesheet for the plugin's lifetime. */
+export function installConsoleStyles(ctx: Context): void {
+  if (typeof document === 'undefined') return
+  ctx.effect(() => {
+    const tag = document.createElement('style')
+    tag.dataset.plugin = CONSOLE_STYLE_PLUGIN
+    tag.textContent = CONSOLE_CSS
+    document.head.appendChild(tag)
+    return () => { tag.remove() }
+  }, `${CONSOLE_STYLE_PLUGIN}: stylesheet`)
+}
