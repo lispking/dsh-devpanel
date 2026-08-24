@@ -24,6 +24,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 // ui-conversation) into this program so PropsRuntime resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
+  ConsoleListDirResult,
   ConsoleListResult,
   ConsoleReadFileResult,
   ConsoleReadResult,
@@ -48,6 +49,7 @@ export interface TerminalPanelFace {
   list: (signal?: AbortSignal) => Promise<RemoteResult<ConsoleListResult>>
   dispose: (id: string, signal?: AbortSignal) => Promise<RemoteResult<{ ok: true }>>
   readFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
+  listDir: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
 }
 
 /** Injected business face of the Terminate dialog. */

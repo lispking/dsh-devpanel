@@ -68,6 +68,18 @@ export const readFileResultSchema = z.object({
   dataUrl: z.string().optional(),
 })
 
+/** One directory entry (name + dir/file kind). */
+export const dirEntrySchema = z.object({
+  name: z.string(),
+  kind: z.union([z.literal('dir'), z.literal('file')]),
+})
+
+/** Directory listing result: resolved path + sorted entries. */
+export const listDirResultSchema = z.object({
+  path: z.string(),
+  entries: z.array(dirEntrySchema),
+})
+
 /** Permitted terminal signals (mirrors SubprocessTerminalSignal). */
 export const signalSchema = z.union([
   z.literal('SIGINT'),

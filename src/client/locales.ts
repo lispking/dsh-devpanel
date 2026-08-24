@@ -14,6 +14,12 @@ export type ConsoleKey =
   | 'sidebar.readError'
   | 'sidebar.maximize'
   | 'sidebar.user'
+  | 'sidebar.modes.aria'
+  | 'sidebar.modes.files'
+  | 'sidebar.modes.browse'
+  | 'sidebar.browse.loading'
+  | 'sidebar.browse.error'
+  | 'sidebar.browse.empty'
   | 'dialog.title'
   | 'dialog.close'
   | 'dialog.newTab'
@@ -39,6 +45,12 @@ export const zh: Record<ConsoleKey, string> = {
   'sidebar.readError': '读取文件失败',
   'sidebar.maximize': '全屏查看',
   'sidebar.user': '你',
+  'sidebar.modes.aria': '侧边栏显示模式',
+  'sidebar.modes.files': '会话文件',
+  'sidebar.modes.browse': '目录',
+  'sidebar.browse.loading': '加载中…',
+  'sidebar.browse.error': '无法读取目录',
+  'sidebar.browse.empty': '空目录',
   'dialog.title': '终端',
   'dialog.close': '关闭',
   'dialog.newTab': '新建终端',
@@ -58,6 +70,12 @@ export const en: Record<ConsoleKey, string> = {
   'sidebar.readError': 'Failed to read the file',
   'sidebar.maximize': 'View fullscreen',
   'sidebar.user': 'You',
+  'sidebar.modes.aria': 'Sidebar display mode',
+  'sidebar.modes.files': 'Session files',
+  'sidebar.modes.browse': 'Browse',
+  'sidebar.browse.loading': 'Loading…',
+  'sidebar.browse.error': 'Failed to read directory',
+  'sidebar.browse.empty': 'Empty directory',
   'dialog.title': 'Terminal',
   'dialog.close': 'Close',
   'dialog.newTab': 'New terminal',

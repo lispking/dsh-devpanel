@@ -98,3 +98,19 @@ export interface ConsoleReadFileResult {
   /** Base64 data URL (kind: 'image'). */
   dataUrl?: string
 }
+
+/** One entry of a directory listing. */
+export interface ConsoleDirEntry {
+  /** Entry name (the last path segment). */
+  name: string
+  /** Directory or regular file. */
+  kind: 'dir' | 'file'
+}
+
+/** Directory listing for the browser file tree. */
+export interface ConsoleListDirResult {
+  /** Resolved absolute directory path on the host. */
+  path: string
+  /** Entries sorted directories-first, then alphabetically. */
+  entries: readonly ConsoleDirEntry[]
+}

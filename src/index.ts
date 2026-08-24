@@ -11,12 +11,14 @@
 
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { readFile as readFileNode, stat } from 'node:fs/promises'
+import { readFile as readFileNode, readdir, stat } from 'node:fs/promises'
 import { extname, basename, resolve, relative } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
 import type {
+  ConsoleDirEntry,
+  ConsoleListDirResult,
   ConsoleListResult,
   ConsoleReadFileResult,
   ConsoleReadResult,
@@ -260,6 +262,34 @@ export class TerminalPanelService extends TypertRemoteService {
   }
 
   /**
+   * Resolve a browser-supplied path the same way for readFile and listDir:
+   * `~`-prefixed paths land in the home directory; absolute paths are used
+   * verbatim; relative paths resolve under `cwd` and must NOT escape it
+   * (accidental traversal guard — absolute/`~` paths are explicit intent).
+   * @param path - absolute, `~`-prefixed, or `cwd`-relative path.
+   * @param cwd - base directory for relative paths; defaults to the host cwd.
+   * @returns the normalized absolute path.
+   */
+  private resolveTarget(path: string, cwd?: string): string {
+    const resolved = path === '~' || path.startsWith('~/')
+      ? `${homedir()}${path.slice(1)}`
+      : path
+    const base = cwd === undefined || cwd === '' || cwd === '~' ? process.cwd() : cwd
+    const target = resolve(resolved.startsWith('/') ? resolved : `${base}/${resolved}`)
+    // Reject relative paths that traverse out of the project root. Absolute
+    // and `~`-prefixed paths are explicit user intent and stay allowed.
+    if (!resolved.startsWith('/') && !resolved.startsWith('~')) {
+      const drift = relative(resolve(base), target)
+      if (drift.startsWith('..') || drift === '') {
+        if (drift !== '') {
+          throw new Error(`terminalPanel: path escapes project directory ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
+        }
+      }
+    }
+    return target
+  }
+
+  /**
    * Read one file for the browser file viewer (the AI-output sidebar).
    *
    * Threat model: the browser is the same user who already owns the host
@@ -279,23 +309,7 @@ export class TerminalPanelService extends TypertRemoteService {
    */
   @Remote
   async readFile(path: string, cwd?: string): Promise<ConsoleReadFileResult> {
-    const resolved = path === '~' || path.startsWith('~/')
-      ? `${homedir()}${path.slice(1)}`
-      : path
-    const base = cwd === undefined || cwd === '' || cwd === '~' ? process.cwd() : cwd
-    const target = resolve(resolved.startsWith('/') ? resolved : `${base}/${resolved}`)
-    // Reject relative paths that traverse out of the project root. Absolute
-    // and `~`-prefixed paths are explicit user intent and stay allowed.
-    if (!resolved.startsWith('/') && !resolved.startsWith('~')) {
-      const drift = relative(resolve(base), target)
-      if (drift.startsWith('..') || drift === '') {
-        if (drift === '') {
-          // target IS the base dir itself — not a file, let stat reject it.
-        } else {
-          throw new Error(`terminalPanel: path escapes project directory ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
-        }
-      }
-    }
+    const target = this.resolveTarget(path, cwd)
     const info = await stat(target)
     if (!info.isFile()) {
       throw new Error(`terminalPanel: not a file ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
@@ -308,6 +322,30 @@ export class TerminalPanelService extends TypertRemoteService {
     }
     const content = await readFileNode(target, 'utf8')
     return { path: target, content, kind: 'text' }
+  }
+
+  /**
+   * List one directory for the browser file tree (the AI-output sidebar).
+   * Same path resolution and traversal guard as readFile; entries are sorted
+   * directories-first, then alphabetically, with dotfiles included.
+   * @param path - absolute, `~`-prefixed, or `cwd`-relative directory path.
+   * @param cwd - base directory for relative paths; defaults to the host cwd.
+   * @returns the resolved path and its sorted entries.
+   */
+  @Remote
+  async listDir(path: string, cwd?: string): Promise<ConsoleListDirResult> {
+    const target = this.resolveTarget(path, cwd)
+    const dirents = await readdir(target, { withFileTypes: true })
+    const entries: ConsoleDirEntry[] = dirents.map(entry => ({
+      name: entry.name,
+      kind: entry.isDirectory() ? 'dir' : 'file',
+    }))
+    // Directories first, then alphabetical (case-insensitive).
+    entries.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    })
+    return { path: target, entries }
   }
 
   private expect(id: string): SessionRecord {

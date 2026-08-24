@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
 import { PassThrough } from 'node:stream'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -187,5 +187,34 @@ describe('TerminalPanelService', () => {
   it('rejects reading a missing file with the resolved path in the error', async () => {
     const { service } = await mountService()
     await expect(service.readFile('missing.txt', '/tmp')).rejects.toThrow(/missing\.txt/)
+  })
+
+  it('lists a directory with directories first, then files, alphabetically', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-devpanel-'))
+    try {
+      mkdirSync(join(dir, 'zeta'))
+      mkdirSync(join(dir, 'alpha'))
+      writeFileSync(join(dir, 'b.txt'), '')
+      writeFileSync(join(dir, 'a.txt'), '')
+      const { service } = await mountService()
+      const listing = await service.listDir('', dir)
+      expect(listing.path).toBe(dir)
+      // Directories (alpha, zeta) sort before files (a.txt, b.txt); each
+      // group is alphabetical.
+      expect(listing.entries.map(entry => entry.name)).toEqual([
+        'alpha', 'zeta', 'a.txt', 'b.txt',
+      ])
+      expect(listing.entries[0]?.kind).toBe('dir')
+      expect(listing.entries[3]?.kind).toBe('file')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('lists the user home for a ~ path and rejects a missing directory', async () => {
+    const { service } = await mountService()
+    const home = await service.listDir('~')
+    expect(home.path).toBe(homedir())
+    await expect(service.listDir('no-such-dir', '/tmp')).rejects.toThrow(/no-such-dir/)
   })
 })

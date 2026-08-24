@@ -18,7 +18,7 @@ import { CodeBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the 'details' SlotMap row (declared by ui-layout) into
 // this program so PropsRuntime<'details'> resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { ConsoleReadFileResult } from '../types.ts'
+import type { ConsoleListDirResult, ConsoleReadFileResult } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
 import type { TerminalPanelFace } from './TerminateDialog.tsx'
 import { NS } from './locales.ts'
@@ -198,6 +198,91 @@ function FileBody({ result }: { result: ConsoleReadFileResult }) {
   return <pre className="dsh-devpanel-file-content">{result.content}</pre>
 }
 
+/** One lazily-loaded directory listing in the tree cache. */
+interface DirCacheEntry {
+  state: 'loading' | 'ready' | 'error'
+  result?: ConsoleListDirResult
+  error?: string
+}
+
+/** Tree props shared by every node (driven from the sidebar's state). */
+interface DirTreeProps {
+  path: string
+  name: string
+  depth: number
+  terminalPanel: TerminalPanelFace
+  sessionCwd: string | undefined
+  cache: ReadonlyMap<string, DirCacheEntry>
+  loadDir: (path: string) => void
+  expanded: ReadonlySet<string>
+  toggleDir: (path: string) => void
+  onFile: (path: string) => void
+  t: ConsoleSidebarProps['t']
+}
+
+/** One directory node: a toggle row that lazily lists its children on expand. */
+function DirNode({ path, name, depth, terminalPanel, sessionCwd, cache, loadDir, expanded, toggleDir, onFile, t }: DirTreeProps) {
+  const entry = cache.get(path)
+  const isOpen = expanded.has(path)
+  const children = entry?.state === 'ready' ? entry.result?.entries ?? [] : []
+  const childProps = {
+    terminalPanel, sessionCwd, cache, loadDir, expanded, toggleDir, onFile, t,
+  }
+  // Open body: loading / error / empty / children rows (computed as a plain
+  // value so the JSX keeps one flat `{body}` slot instead of nested ternaries).
+  let body: React.JSX.Element | null = null
+  if (isOpen) {
+    if (entry === undefined || entry.state === 'loading') {
+      body = <div className="dsh-devpanel-tree-status" style={{ '--dsh-tree-depth': depth + 1 } as React.CSSProperties}>{t('sidebar.browse.loading')}</div>
+    } else if (entry.state === 'error') {
+      body = <div className="dsh-devpanel-tree-status dsh-devpanel-tree-error" style={{ '--dsh-tree-depth': depth + 1 } as React.CSSProperties}>{entry.error ?? t('sidebar.browse.error')}</div>
+    } else if (children.length === 0) {
+      body = <div className="dsh-devpanel-tree-status" style={{ '--dsh-tree-depth': depth + 1 } as React.CSSProperties}>{t('sidebar.browse.empty')}</div>
+    } else {
+      body = (
+        <>
+          {children.map(child => child.kind === 'dir'
+            ? <DirNode key={child.name} {...childProps} path={`${path}/${child.name}`} name={child.name} depth={depth + 1} />
+            : (
+              <button
+                key={child.name}
+                type="button"
+                className="dsh-devpanel-tree-row dsh-devpanel-tree-file"
+                data-depth={depth + 1}
+                style={{ '--dsh-tree-depth': depth + 1 } as React.CSSProperties}
+                onClick={() => onFile(`${path}/${child.name}`)}
+                title={`${path}/${child.name}`}
+              >
+                <span className="dsh-devpanel-tree-caret" />
+                <span className="dsh-devpanel-tree-name">{child.name}</span>
+              </button>
+            ))}
+        </>
+      )
+    }
+  }
+  return (
+    <div className="dsh-devpanel-tree">
+      <button
+        type="button"
+        className="dsh-devpanel-tree-row"
+        data-depth={depth}
+        data-dir={undefined}
+        style={{ '--dsh-tree-depth': depth } as React.CSSProperties}
+        onClick={() => {
+          toggleDir(path)
+          if (!isOpen && entry === undefined) loadDir(path)
+        }}
+        title={path}
+      >
+        <span className="dsh-devpanel-tree-caret">{isOpen ? '▾' : '▸'}</span>
+        <span className="dsh-devpanel-tree-name">{name}</span>
+      </button>
+      {body}
+    </div>
+  )
+}
+
 /**
  * Render the file viewer in the right details column.
  * @param props - details standard kit (useSession), locale seat, injected face.
@@ -209,11 +294,38 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   const [result, setResult] = useState<ConsoleReadFileResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [maximized, setMaximized] = useState(false)
+  // Browse mode: the session-artifact list vs a lazily-expanded directory tree
+  // rooted at the session's project directory (or the user home).
+  const [browse, setBrowse] = useState(false)
+  const [cache, setCache] = useState<Map<string, DirCacheEntry>>(new Map())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const snapshot = useSession((s) => s)
   const files = collectFiles(snapshot)
   // Relative file paths surface against the session's project directory.
   const sessionCwd = useSessions((list) => sessionId === undefined ? undefined : list.byId[sessionId]?.cwd)
+  const rootPath = sessionCwd === undefined || sessionCwd === '' ? '~' : sessionCwd
+
+  // Fetch one directory's listing into the cache (idempotent; the node shows a
+  // loading/error state from the cache entry while it settles).
+  const loadDir = (path: string): void => {
+    if (cache.has(path)) return
+    setCache(prev => new Map(prev).set(path, { state: 'loading' }))
+    void terminalPanel.listDir(path, sessionCwd).then((res) => {
+      setCache(prev => new Map(prev).set(path, res.ok
+        ? { state: 'ready', result: res.value }
+        : { state: 'error', error: res.error?.message }))
+    })
+  }
+  const toggleDir = (path: string): void => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+  const openFile = (path: string): void => { setActive(path) }
 
   // Read the active file's content through the Remote; abort a stale read when
   // the selection changes or the sidebar closes.
@@ -236,11 +348,35 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   }, [state.sidebarOpen, active, sessionCwd, terminalPanel, t])
 
   if (!state.sidebarOpen) return null
+  const treeProps = {
+    terminalPanel, sessionCwd, cache, loadDir, expanded, toggleDir,
+    onFile: openFile, t,
+  }
   return (
     <>
       <div className="dsh-devpanel-sidebar" role="region" aria-label={t('sidebar.title')}>
         <div className="dsh-devpanel-sidebar-header">
           <span className="dsh-devpanel-sidebar-title">{t('sidebar.title')}</span>
+          <div className="dsh-devpanel-sidebar-modes" role="tablist" aria-label={t('sidebar.modes.aria')}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!browse}
+              data-active={!browse || undefined}
+              onClick={() => { setBrowse(false) }}
+            >
+              {t('sidebar.modes.files')}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={browse}
+              data-active={browse || undefined}
+              onClick={() => { setBrowse(true) }}
+            >
+              {t('sidebar.modes.browse')}
+            </button>
+          </div>
           <button
             type="button"
             className="dsh-devpanel-close"
@@ -253,49 +389,54 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
             ×
           </button>
         </div>
-      {files.length === 0
-        ? <div className="dsh-devpanel-empty">{t('sidebar.empty')}</div>
-        : (
-          <>
-            <div className="dsh-devpanel-files">
-              {files.map((file) => (
-                <button
-                  key={file.path}
-                  type="button"
-                  className="dsh-devpanel-file"
-                  data-active={file.path === active || undefined}
-                  onClick={() => { setActive(file.path) }}
-                  title={file.path}
-                >
-                  {file.name}
-                </button>
-              ))}
-            </div>
-            <div className="dsh-devpanel-file-view">
-              {error !== null
-                ? <div className="dsh-devpanel-empty">{error}</div>
-                : result === null
-                  ? <div className="dsh-devpanel-empty">{t('sidebar.select')}</div>
-                  : (
-                    <>
-                      <div className="dsh-devpanel-file-path">
-                        <span className="dsh-devpanel-file-path-text">{result.path}</span>
-                        <button
-                          type="button"
-                          className="dsh-devpanel-file-maximize"
-                          aria-label={t('sidebar.maximize')}
-                          title={t('sidebar.maximize')}
-                          onClick={() => { setMaximized(true) }}
-                        >
-                          ⛶
-                        </button>
-                      </div>
-                      <FileBody result={result} />
-                    </>
-                  )}
-            </div>
-          </>
-        )}
+      <div className="dsh-devpanel-files">
+        {browse
+          ? (
+            <DirNode
+              {...treeProps}
+              path={rootPath}
+              name={rootPath}
+              depth={0}
+            />
+          )
+          : files.length === 0
+            ? <div className="dsh-devpanel-empty">{t('sidebar.empty')}</div>
+            : files.map((file) => (
+              <button
+                key={file.path}
+                type="button"
+                className="dsh-devpanel-file"
+                data-active={file.path === active || undefined}
+                onClick={() => { setActive(file.path) }}
+                title={file.path}
+              >
+                {file.name}
+              </button>
+            ))}
+      </div>
+      <div className="dsh-devpanel-file-view">
+        {error !== null
+          ? <div className="dsh-devpanel-empty">{error}</div>
+          : result === null
+            ? <div className="dsh-devpanel-empty">{t('sidebar.select')}</div>
+            : (
+              <>
+                <div className="dsh-devpanel-file-path">
+                  <span className="dsh-devpanel-file-path-text">{result.path}</span>
+                  <button
+                    type="button"
+                    className="dsh-devpanel-file-maximize"
+                    aria-label={t('sidebar.maximize')}
+                    title={t('sidebar.maximize')}
+                    onClick={() => { setMaximized(true) }}
+                  >
+                    ⛶
+                  </button>
+                </div>
+                <FileBody result={result} />
+              </>
+            )}
+      </div>
     </div>
     {maximized && result !== null && (
       <div className="dsh-devpanel-file-fullscreen" role="dialog" aria-label={result.path}>

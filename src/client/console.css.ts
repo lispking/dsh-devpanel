@@ -63,6 +63,76 @@ export const CONSOLE_CSS = `
 .dsh-devpanel-sidebar-title {
   font-weight: 600;
 }
+/* Mode tabs (session files vs directory tree) in the sidebar header. */
+.dsh-devpanel-sidebar-modes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-3, #f3f4f6);
+}
+.dsh-devpanel-sidebar-modes button {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-devpanel-sidebar-modes button[data-active] {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+/* Directory tree: indented rows with a caret, nested inside .dsh-devpanel-files. */
+.dsh-devpanel-tree {
+  display: flex;
+  flex-direction: column;
+}
+.dsh-devpanel-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 8px;
+  padding-left: calc(8px + var(--dsh-tree-depth, 0) * 14px);
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dsh-devpanel-tree-row:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-devpanel-tree-caret {
+  flex: none;
+  width: 12px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-size: 10px;
+  text-align: center;
+}
+.dsh-devpanel-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsh-devpanel-tree-file {
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-devpanel-tree-status {
+  padding: 2px 8px;
+  padding-left: calc(8px + var(--dsh-tree-depth, 0) * 14px + 12px);
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-devpanel-tree-error {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
 
 .dsh-devpanel-dialog {
   box-sizing: border-box;
