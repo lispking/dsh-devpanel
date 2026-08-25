@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { SerializeAddon } from '@xterm/addon-serialize'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   SnapshotStore, ISessions, SessionListState,
@@ -185,13 +186,27 @@ function loadSavedTabs(sessionId: string | undefined): SavedTabDescriptor[] {
 }
 
 /**
- * Copy a prior xterm's buffer text into a fresh one. Restoring a session's
- * panel REBUILDS its terminals (a detached xterm element shows the old
- * content but cannot accept input), and replaying the old lines keeps the
- * scrollback visible. Best-effort plain-text replay; ANSI styling is not
- * preserved.
+ * Copy a prior xterm's content into a fresh one, preserving ANSI styling.
+ * Restoring a session's panel REBUILDS its terminals (a detached xterm
+ * element would show the old content but cannot accept input), so the
+ * scrollback is replayed into the fresh instance via the official
+ * serialization addon — identical colors and layout. Falls back to plain
+ * text if serialization fails on an exotic buffer state.
  */
 function replayBuffer(from: Terminal, into: Terminal): void {
+  try {
+    const serializer = new SerializeAddon()
+    serializer.activate(from)
+    const serialized = serializer.serialize()
+    if (serialized.length > 0) {
+      // Runs before `into` is opened (adopt opens in the next frame), which
+      // the addon recommends to avoid rendering incomplete frames.
+      into.write(serialized)
+      return
+    }
+  } catch {
+    // Fall through to the plain-text reconstruction below.
+  }
   const buffer = from.buffer.active
   const lines: string[] = []
   for (let i = 0; i < buffer.length; i++) {
@@ -446,6 +461,11 @@ function TerminateView({
   // went false for the NEW session — keep the previous session's terminals
   // alive so switching back restores them instead of spawning a fresh tab).
   const lastOpenSessionRef = useRef<string | undefined>(undefined)
+  // The chat session the currently displayed tabs belong to. The harness
+  // reuses this component across sessions (the sessionId prop changes), so
+  // the tab state must be swapped on switch — save the previous session's
+  // layout to the registry and clear the display for the incoming session.
+  const tabsSessionRef = useRef<string | undefined>(undefined)
   // Terminal band height: persisted across reloads; the handle drags it live
   // and commits on pointer-up. A ref mirrors the state for the move handler.
   const [terminalHeight, setTerminalHeight] = useState(loadTerminalHeight)
@@ -625,13 +645,26 @@ function TerminateView({
       const { terminal, fit, search } = createTerminal()
       // Rebuild the scrollback the session left behind: a detached xterm
       // element would show the old content but cannot accept input, so the
-      // restored terminal is a fresh xterm with the prior buffer replayed.
+      // restored terminal is a fresh xterm with the prior content replayed
+      // (ANSI-preserving). The prior tab label is kept too: renames and OSC
+      // titles are client-side and never reach the host's session record.
       const prior = priorTabs?.find(tab => tab.view.id === view.id)
       if (prior !== undefined) {
         replayBuffer(prior.terminal, terminal)
       }
+      // Native input path: mirror spawn()'s wiring so the restored terminal
+      // accepts keystrokes into its live PTY.
+      terminal.onData((data) => {
+        void terminalPanel.write(view.id, data, false)
+      })
       return {
-        view: { ...view },
+        view: {
+          ...view,
+          // Prefer the prior tab's label (renames and OSC titles are
+          // client-side and never reach the host's session record). The
+          // conditional spread keeps `name` optional for the view type.
+          ...(prior?.view.name === undefined ? {} : { name: prior.view.name }),
+        },
         terminal,
         fit,
         search,
@@ -662,6 +695,25 @@ function TerminateView({
     if (sessionId !== undefined) store.update(draft => { draft.activeTerminalId[sessionId] = activeId })
   }, [store, sessionId, activeId])
 
+  // Session switch: the harness reuses this component with a changing
+  // sessionId prop, so the displayed tabs must be swapped. Save the previous
+  // session's layout (its xterms feed the replay on return) and clear the
+  // display; restore() below rebuilds the incoming session's panel from its
+  // own live PTYs.
+  useEffect(() => {
+    if (sessionId === undefined) return
+    const prev = tabsSessionRef.current
+    if (prev !== undefined && prev !== sessionId) {
+      if (tabsRef.current.length > 0) {
+        sessionPanels.set(prev, { tabs: tabsRef.current, activeId })
+      }
+      tabsRef.current = []
+      setTabs([])
+      setActiveId(null)
+    }
+    tabsSessionRef.current = sessionId
+  }, [sessionId])
+
   // Keep this session's latest layout in the module registry so a later
   // remount (session switch) restores it: the xterm instances survive here
   // with their scrollback and re-attach to fresh mount divs on restore.
@@ -677,12 +729,18 @@ function TerminateView({
   const restore = (): void => {
     const myOpen = openRef.current
     const saved = sessionId === undefined ? undefined : sessionPanels.get(sessionId)
+    const savedIds = new Set(saved?.tabs.map(tab => tab.view.id) ?? [])
     void terminalPanel.list().then((listed) => {
       if (!openRef.current || myOpen !== openRef.current) return
-      // Adopt only THIS session's own live PTYs: another session's terminals
-      // must not leak into a fresh panel — a new session gets a fresh tab.
-      const live = (listed.ok ? listed.value.sessions : [])
-        .filter(view => sessionId === undefined || view.owner === sessionId)
+      const all = listed.ok ? listed.value.sessions : []
+      // Adopt this session's own live PTYs: matched by the owner tag (spawned
+      // since the owner feature) OR by the session's previously saved tab ids
+      // (legacy sessions spawned before the tag existed carry no owner). A
+      // session that never used the panel has neither, so it spawns a fresh
+      // tab below instead of adopting another session's terminals.
+      const live = sessionId === undefined
+        ? all
+        : all.filter(view => view.owner === sessionId || savedIds.has(view.id))
       if (live.length > 0) {
         adopt(live, saved?.activeId ?? null)
         return
@@ -697,20 +755,16 @@ function TerminateView({
   }
   useEffect(() => {
     if (!open) return
-    if (tabsRef.current.length === 0) {
-      // Rebuild this session's panel from its own live PTYs: restore() adopts
-      // them into FRESH xterms (with the prior scrollback replayed), because
-      // re-attaching a detached xterm element shows the old content but
-      // leaves the terminal unable to accept input.
-      restore()
-    } else {
-      // Tabs already mounted (open in both sessions): just re-fit them.
-      window.requestAnimationFrame(() => {
-        for (const session of tabsRef.current) openTerminal(session)
-      })
-    }
+    // Always rebuild the current session's panel from its own live PTYs:
+    // restore() adopts them into FRESH xterms (with the prior scrollback
+    // replayed). Re-attaching a detached xterm element would show the old
+    // content but cannot accept input, and reusing leftover tabs from a
+    // previous session would leak them into this one. Keyed on sessionId so
+    // a switch into an open panel rebuilds it right after the swap cleared
+    // the display.
+    restore()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore is stable for the dialog lifetime.
-  }, [open, terminalPanel])
+  }, [open, sessionId])
 
   // Keep the active tab in view: a newly spawned tab (or one selected from
   // the overflow strip) must not sit scrolled out of the tab bar. Optional
