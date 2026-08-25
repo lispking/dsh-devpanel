@@ -18,13 +18,14 @@ export const sessionStatusSchema = z.union([
   }),
 ])
 
-/** Spawn request: argv (empty = system login shell), cwd, initial size, optional name. */
+/** Spawn request: argv (empty = system login shell), cwd, initial size, optional name/owner. */
 export const spawnRequestSchema = z.object({
   argv: z.array(z.string()),
   cwd: z.string(),
   rows: z.number(),
   cols: z.number(),
   name: z.string().optional(),
+  owner: z.string().optional(),
 })
 
 /** Spawn result: service-minted id, top-level pid, shell program name. */
@@ -51,6 +52,7 @@ export const sessionViewSchema = z.object({
   name: z.string().optional(),
   shell: z.string().optional(),
   pid: z.number().optional(),
+  owner: z.string().optional(),
   status: sessionStatusSchema,
 })
 

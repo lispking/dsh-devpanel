@@ -98,6 +98,10 @@ interface SessionRecord {
   readonly id: string
   /** Optional owner-local display name. */
   readonly name?: string
+  /** Owning chat session id (browser-side panel identity), echoed back in
+   *  list views so the client adopts exactly its own sessions after a
+   *  refresh instead of every session's. */
+  readonly owner?: string
   /** Shell program name (e.g. 'zsh') shown as the tab badge. */
   readonly shell: string
   /** Top-level terminal process id. */
@@ -182,6 +186,7 @@ export class TerminalPanelService extends TypertRemoteService {
     const record: SessionRecord = {
       id,
       ...(request.name === undefined ? {} : { name: request.name }),
+      ...(request.owner === undefined ? {} : { owner: request.owner }),
       shell,
       pid: handle.pid,
       handle,
@@ -281,6 +286,7 @@ export class TerminalPanelService extends TypertRemoteService {
     const sessions: ConsoleSessionView[] = [...this.sessions.values()].map(record => ({
       id: record.id,
       ...(record.name === undefined ? {} : { name: record.name }),
+      ...(record.owner === undefined ? {} : { owner: record.owner }),
       shell: record.shell,
       pid: record.pid,
       status: record.status,

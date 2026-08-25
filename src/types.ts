@@ -27,6 +27,9 @@ export interface ConsoleSpawnRequest {
   cols: number
   /** Optional owner-local display name. */
   name?: string
+  /** Owning chat session id, so the client can adopt back exactly its own
+   *  live sessions after a refresh instead of everyone else's. */
+  owner?: string
 }
 
 /** Successful spawn result. */
@@ -77,6 +80,8 @@ export interface ConsoleSessionView {
   shell?: string
   /** Top-level process id. */
   pid?: number
+  /** Owning chat session id (see ConsoleSpawnRequest.owner). */
+  owner?: string
   /** Current top-level process status. */
   status: ConsoleSessionStatus
 }
