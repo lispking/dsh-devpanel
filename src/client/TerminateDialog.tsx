@@ -74,6 +74,76 @@ export type TerminateDialogProps =
 /** Read interval while a session runs. */
 const READ_INTERVAL_MS = 150
 
+/** Body attribute the harness theme presenter sets when the dark palette is active. */
+const DARK_ATTRIBUTE = 'data-ds-dark-theme'
+
+/** Detect the harness's current light/dark palette from the DOM signal the
+ *  theme presenter owns (body[data-ds-dark-theme]), falling back to the OS
+ *  preference before the presenter runs. */
+function isDarkTheme(): boolean {
+  if (typeof document !== 'undefined' && document.body?.hasAttribute(DARK_ATTRIBUTE)) return true
+  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches) return true
+  return false
+}
+
+/** One-Dark-style terminal palette (the panel's native dark surface). */
+const TERMINAL_THEME_DARK = {
+  background: '#1b1b1f',
+  foreground: '#e4e4e7',
+  cursor: '#e4e4e7',
+  cursorAccent: '#1b1b1f',
+  selectionBackground: 'rgba(76, 107, 254, 0.32)',
+  selectionForeground: '#e4e4e7',
+  black: '#3b3b40',
+  red: '#e06c75',
+  green: '#98c379',
+  yellow: '#d19a66',
+  blue: '#61afef',
+  magenta: '#c678dd',
+  cyan: '#56b6c2',
+  white: '#abb2bf',
+  brightBlack: '#5c5c66',
+  brightRed: '#f26d78',
+  brightGreen: '#a8e07c',
+  brightYellow: '#e2b36e',
+  brightBlue: '#6cc1f8',
+  brightMagenta: '#d088f0',
+  brightCyan: '#62c8d4',
+  brightWhite: '#e4e4e7',
+}
+
+/** One-Light-style terminal palette for the harness light theme: the same ANSI
+ *  hue family re-tuned so colored output stays readable on a light canvas. */
+const TERMINAL_THEME_LIGHT = {
+  background: '#ffffff',
+  foreground: '#1f2937',
+  cursor: '#1f2937',
+  cursorAccent: '#ffffff',
+  selectionBackground: 'rgba(59, 130, 246, 0.30)',
+  selectionForeground: '#1f2937',
+  black: '#383a42',
+  red: '#e45649',
+  green: '#50a14f',
+  yellow: '#c18401',
+  blue: '#4078f2',
+  magenta: '#a626a4',
+  cyan: '#0184bc',
+  white: '#4f525e',
+  brightBlack: '#6a737d',
+  brightRed: '#e45649',
+  brightGreen: '#50a14f',
+  brightYellow: '#c18401',
+  brightBlue: '#4078f2',
+  brightMagenta: '#a626a4',
+  brightCyan: '#0184bc',
+  brightWhite: '#383a42',
+}
+
+/** The xterm theme matching the harness's current palette. */
+function terminalTheme(): typeof TERMINAL_THEME_DARK {
+  return isDarkTheme() ? TERMINAL_THEME_DARK : TERMINAL_THEME_LIGHT
+}
+
 /** Default terminal band height (mirrors the CSS fallback). */
 const DEFAULT_TERMINAL_HEIGHT = 240
 /** Draggable height range for the terminal band. */
@@ -103,6 +173,53 @@ function loadSavedTabs(): SavedTabDescriptor[] {
       && typeof (entry as SavedTabDescriptor).name === 'string')
   } catch {
     return []
+  }
+}
+
+/** localStorage key for user-defined command snippets (the Cmd/Ctrl+K palette). */
+const SNIPPETS_STORAGE_KEY = 'dsh-devpanel.snippets'
+
+/** One command snippet: display name + the shell line sent on Enter. */
+interface CommandSnippet {
+  name: string
+  command: string
+  /** Built-in defaults cannot be deleted; user entries can. */
+  custom: boolean
+}
+
+/** Generic starter snippets; users add their own through the palette. */
+const DEFAULT_SNIPPETS: readonly CommandSnippet[] = [
+  { name: 'git status', command: 'git status', custom: false },
+  { name: 'git diff', command: 'git diff', custom: false },
+  { name: 'git recent log', command: 'git log --oneline --graph -20', custom: false },
+  { name: 'list files', command: 'ls -la', custom: false },
+]
+
+/** Load user-defined snippets; malformed or absent storage returns empty. */
+function loadCustomSnippets(): CommandSnippet[] {
+  try {
+    const raw = window.localStorage.getItem(SNIPPETS_STORAGE_KEY)
+    if (raw === null) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((entry): entry is { name: string; command: string } =>
+      typeof entry === 'object' && entry !== null
+      && typeof (entry as { name?: unknown }).name === 'string'
+      && typeof (entry as { command?: unknown }).command === 'string')
+      .map(entry => ({ name: entry.name, command: entry.command, custom: true }))
+  } catch {
+    return []
+  }
+}
+
+/** Persist only the user-defined subset (built-ins stay in code). */
+function persistCustomSnippets(all: readonly CommandSnippet[]): void {
+  try {
+    const custom = all.filter(snippet => snippet.custom)
+      .map(({ name, command }) => ({ name, command }))
+    window.localStorage.setItem(SNIPPETS_STORAGE_KEY, JSON.stringify(custom))
+  } catch {
+    // Storage unavailable (private mode): snippets stay for this session only.
   }
 }
 
@@ -194,6 +311,9 @@ interface TerminalSessionUi {
   cwd?: string
   /** The working directory this tab was spawned in (restore fallback). */
   spawnCwd?: string
+  /** Whether the tab should flash a "completed" highlight: set on process
+   *  exit or a BEL byte, cleared when its tab is focused/clicked. */
+  notify: boolean
 }
 
 /** Compute the next tab label: default, default 2, default 3, … */
@@ -247,12 +367,33 @@ function TerminateView({
 }) {
   const [tabs, setTabs] = useState<TerminalSessionUi[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  // Inline rename state: the tab id being renamed (or null) + the draft text.
+  // A ref mirrors the id so a blur after Escape (unmount) cannot commit.
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const renamingIdRef = useRef<string | null>(null)
+  renamingIdRef.current = renamingId
+  const renameInputRef = useRef<HTMLInputElement | null>(null)
   // Search bar state: open flag, term, and the last result counter emitted by
   // the active addon's onDidChangeResults (index + count; -1/0 when no match).
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState({ index: 0, count: 0 })
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  // Command snippet palette (Cmd/Ctrl+K): open flag + filter, the merged
+  // snippet list (built-ins + persisted user entries), the highlighted row,
+  // and the add-form drafts. Rows are matched/deleted by object reference.
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteFilter, setPaletteFilter] = useState('')
+  const [snippetList, setSnippetList] = useState<CommandSnippet[]>(() => [
+    ...DEFAULT_SNIPPETS,
+    ...loadCustomSnippets(),
+  ])
+  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [addingSnippet, setAddingSnippet] = useState(false)
+  const [newSnippetName, setNewSnippetName] = useState('')
+  const [newSnippetCommand, setNewSnippetCommand] = useState('')
+  const paletteInputRef = useRef<HTMLInputElement | null>(null)
   // Latest counter callback for addons created in spawn() (which closes over
   // this ref, not the current render's setter).
   const searchResultsCbRef = useRef<(index: number, count: number) => void>(() => {})
@@ -307,33 +448,10 @@ function TerminateView({
       scrollback: 5000,
       rightClickSelectsWord: true,
       allowProposedApi: false,
-      // Native-terminal palette: near-black canvas, light text, standard ANSI
-      // 16-color set so colored output (git, ls, prompts) reads like a real
-      // terminal, plus a translucent selection tint.
-      theme: {
-        background: '#1b1b1f',
-        foreground: '#e4e4e7',
-        cursor: '#e4e4e7',
-        cursorAccent: '#1b1b1f',
-        selectionBackground: 'rgba(76, 107, 254, 0.32)',
-        selectionForeground: '#e4e4e7',
-        black: '#3b3b40',
-        red: '#e06c75',
-        green: '#98c379',
-        yellow: '#d19a66',
-        blue: '#61afef',
-        magenta: '#c678dd',
-        cyan: '#56b6c2',
-        white: '#abb2bf',
-        brightBlack: '#5c5c66',
-        brightRed: '#f26d78',
-        brightGreen: '#a8e07c',
-        brightYellow: '#e2b36e',
-        brightBlue: '#6cc1f8',
-        brightMagenta: '#d088f0',
-        brightCyan: '#62c8d4',
-        brightWhite: '#e4e4e7',
-      },
+      // Palette follows the harness theme (dark/light); the ANSI 16-color set
+      // is tuned per palette so colored output (git, ls, prompts) reads on
+      // either canvas.
+      theme: terminalTheme(),
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
@@ -418,6 +536,7 @@ function TerminateView({
         pendingFinalRead: false,
         pendingOsc: '',
         spawnCwd: request.cwd,
+        notify: false,
       }
       tabsRef.current = [...tabsRef.current, session]
       setTabs(tabsRef.current)
@@ -447,6 +566,7 @@ function TerminateView({
         opened: false,
         pendingFinalRead: false,
         pendingOsc: '',
+        notify: false,
       }
     })
     tabsRef.current = adopted
@@ -538,6 +658,12 @@ function TerminateView({
     const applyDelta = (session: TerminalSessionUi, delta: string): void => {
       if (delta === '') return
       session.terminal.write(delta)
+      // A BEL byte (form feed, long job done, error beep) flags the tab for a
+      // brief "completed" highlight so the user notices output off-screen.
+      if (delta.includes('\u0007') && !session.notify) {
+        session.notify = true
+        setTabs([...tabsRef.current])
+      }
       const { title, cwd, tail } = scanOsc(`${session.pendingOsc}${delta}`)
       session.pendingOsc = tail
       if (cwd !== null && cwd !== session.cwd) session.cwd = cwd
@@ -559,7 +685,12 @@ function TerminateView({
             applyDelta(session, result.value.delta)
             if (result.value.status.kind !== session.view.status.kind) {
               session.view.status = result.value.status
-              // The session just exited — arm the final drain on the next tick.
+              // The session just exited — flag the tab and arm the final
+              // drain on the next tick.
+              if (!session.notify) {
+                session.notify = true
+                setTabs([...tabsRef.current])
+              }
               session.pendingFinalRead = true
             }
           })
@@ -575,6 +706,22 @@ function TerminateView({
     }, READ_INTERVAL_MS)
     return () => { window.clearInterval(timer) }
   }, [open, terminalPanel])
+
+  // Re-theme open terminals when the harness flips light/dark: the theme
+  // presenter toggles body[data-ds-dark-theme], so watch that attribute and
+  // repaint every open xterm with the matching palette.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const observer = new MutationObserver(() => {
+      const theme = terminalTheme()
+      for (const session of tabsRef.current) {
+        session.terminal.options = { ...session.terminal.options, theme }
+        session.terminal.refresh?.(0, session.terminal.rows - 1)
+      }
+    })
+    observer.observe(document.body, { attributes: true, attributeFilter: [DARK_ATTRIBUTE] })
+    return () => { observer.disconnect() }
+  }, [])
 
   // Re-fit the active tab's viewport when its mount changes size (the dock
   // band is responsive; the PTY size stays at spawn-time values since the
@@ -616,7 +763,35 @@ function TerminateView({
     tabsRef.current = []
     setTabs([])
     setActiveId(null)
+    setRenamingId(null)
     store.update(draft => { draft.dialogOpen = false })
+  }
+
+  // Start inline renaming: snapshot the current label as the draft and focus
+  // the input once the tab re-renders it (next frame).
+  const startRename = (session: TerminalSessionUi): void => {
+    setRenamingId(session.view.id)
+    setRenameDraft(session.view.name ?? session.view.shell ?? 'terminal')
+    window.requestAnimationFrame(() => {
+      renameInputRef.current?.focus()
+      renameInputRef.current?.select()
+    })
+  }
+
+  // Commit the draft as the tab label; an empty/whitespace draft keeps the
+  // current name. Blur-after-Escape is a no-op because the ref was cleared.
+  const commitRename = (): void => {
+    const id = renamingIdRef.current
+    if (id === null) return
+    renamingIdRef.current = null
+    setRenamingId(null)
+    const trimmed = renameDraft.trim()
+    if (trimmed === '') return
+    const session = tabsRef.current.find(candidate => candidate.view.id === id)
+    if (session === undefined) return
+    session.view.name = trimmed
+    // The tab label reads view.name: force the tab bar to re-render.
+    setTabs([...tabsRef.current])
   }
 
   // Drag the band-height handle: pointer-down records the start, window-level
@@ -659,18 +834,95 @@ function TerminateView({
     else session.search.findNext(term, options)
   }
 
-  // Cmd/Ctrl+F on the dialog (terminal textarea events bubble here) opens the
-  // search bar and focuses its input; Esc inside the input closes it.
+  // Command snippet palette helpers ------------------------------------------------
+
+  // Open/close the palette; opening focuses the filter input and resets any
+  // half-typed filter/add-form drafts.
+  const openPalette = (): void => {
+    setPaletteOpen(true)
+    window.requestAnimationFrame(() => paletteInputRef.current?.focus())
+  }
+  const closePalette = (): void => {
+    setPaletteOpen(false)
+    setPaletteFilter('')
+    setPaletteIndex(0)
+    setAddingSnippet(false)
+    setNewSnippetName('')
+    setNewSnippetCommand('')
+  }
+
+  // Snippets matching the filter (case-insensitive substring over the display
+  // name or the command); the highlighted row clamps to the filtered length.
+  const filteredSnippets = snippetList.filter((snippet) => {
+    const needle = paletteFilter.trim().toLowerCase()
+    if (needle === '') return true
+    return snippet.name.toLowerCase().includes(needle)
+      || snippet.command.toLowerCase().includes(needle)
+  })
+  const activeSnippetIndex = Math.min(paletteIndex, Math.max(0, filteredSnippets.length - 1))
+
+  // Run one snippet: submit its command line into the ACTIVE session's PTY,
+  // then close the palette and hand keyboard focus back to the terminal.
+  const sendSnippet = (snippet: CommandSnippet): void => {
+    if (active === undefined || active.view.status.kind !== 'running') return
+    void terminalPanel.write(active.view.id, snippet.command, true)
+    closePalette()
+    window.requestAnimationFrame(() => { active.terminal.focus() })
+  }
+
+  // Persist a new user snippet from the add-form drafts (both fields required).
+  const addSnippet = (): void => {
+    const name = newSnippetName.trim()
+    const command = newSnippetCommand.trim()
+    if (name === '' || command === '') return
+    const next = [...snippetList, { name, command, custom: true } satisfies CommandSnippet]
+    setSnippetList(next)
+    persistCustomSnippets(next)
+    setPaletteIndex(next.length - 1)
+    setNewSnippetName('')
+    setNewSnippetCommand('')
+    setAddingSnippet(false)
+    setPaletteFilter('')
+  }
+
+  // Remove a user-defined snippet (built-ins stay); selection resets to top.
+  const deleteSnippet = (snippet: CommandSnippet): void => {
+    if (!snippet.custom) return
+    const next = snippetList.filter(candidate => candidate !== snippet)
+    setSnippetList(next)
+    persistCustomSnippets(next)
+    setPaletteIndex(0)
+  }
+
+  // Cmd/Ctrl+F opens the search bar; Cmd/Ctrl+K opens the snippet palette
+  // (terminal textarea events bubble here); Esc closes whichever overlay is
+  // open (palette first).
   const onDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-      event.preventDefault()
-      setSearchOpen(true)
-      window.requestAnimationFrame(() => searchInputRef.current?.focus())
-      return
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.altKey !== true) {
+      const key = event.key.toLowerCase()
+      if (key === 'k') {
+        event.preventDefault()
+        if (paletteOpen) closePalette()
+        else openPalette()
+        return
+      }
+      if (key === 'f') {
+        event.preventDefault()
+        setSearchOpen(true)
+        window.requestAnimationFrame(() => searchInputRef.current?.focus())
+        return
+      }
     }
-    if (event.key === 'Escape' && searchOpen) {
-      runFind(active, '', false)
-      setSearchOpen(false)
+    if (event.key === 'Escape') {
+      if (paletteOpen) {
+        event.preventDefault()
+        closePalette()
+        return
+      }
+      if (searchOpen) {
+        runFind(active, '', false)
+        setSearchOpen(false)
+      }
     }
   }
 
@@ -682,35 +934,81 @@ function TerminateView({
         {active?.view.shell !== undefined && (
           <span className="dsh-devpanel-shell-badge">{active.view.shell}</span>
         )}
-        {tabs.map(session => (
-          <button
-            key={session.view.id}
-            type="button"
-            className="dsh-devpanel-tab"
-            data-active={session.view.id === activeId || undefined}
-            onClick={() => {
-              setActiveId(session.view.id)
-              window.requestAnimationFrame(() => openTerminal(session))
-              // Keep search highlights on the newly focused tab.
-              if (searchOpen) runFind(session, searchTerm, false)
-            }}
-            title={session.cwd ?? session.view.name ?? session.view.shell}
-          >
-            <span className="dsh-devpanel-tab-label">{session.view.name ?? session.view.shell ?? 'terminal'}</span>
-            <span
-              className="dsh-devpanel-tab-close"
-              role="button"
-              aria-label={t('dialog.closeTab')}
-              onClick={(event) => {
-                event.stopPropagation()
-                closeTab(session.view.id)
+        {tabs.map(session => {
+          const isRenaming = renamingId === session.view.id
+          // While renaming, render the tab as a div so the inline <input> is
+          // not nested inside a <button> (invalid DOM nesting); the div keeps
+          // the same class for styling and click-to-activate behavior.
+          const tabLabel = session.view.name ?? session.view.shell ?? 'terminal'
+          return (
+            <div
+              key={session.view.id}
+              className="dsh-devpanel-tab"
+              data-active={session.view.id === activeId || undefined}
+              data-notify={session.notify || undefined}
+              role={isRenaming ? undefined : 'tab'}
+              title={session.cwd ?? tabLabel}
+              onClick={() => {
+                if (isRenaming) return
+                setActiveId(session.view.id)
+                // A click clears the "completed" flash (BEL/exit seen earlier).
+                if (session.notify) {
+                  session.notify = false
+                  setTabs([...tabsRef.current])
+                }
+                window.requestAnimationFrame(() => openTerminal(session))
+                // Keep search highlights on the newly focused tab.
+                if (searchOpen) runFind(session, searchTerm, false)
+              }}
+              onDoubleClick={() => {
+                if (!isRenaming) startRename(session)
               }}
             >
-              ×
-            </span>
-          </button>
-        ))}
+              {isRenaming
+                ? (
+                  <input
+                    ref={renameInputRef}
+                    className="dsh-devpanel-tab-rename"
+                    value={renameDraft}
+                    aria-label={t('dialog.renameTab')}
+                    onChange={(event) => { setRenameDraft(event.target.value) }}
+                    onBlur={commitRename}
+                    onKeyDown={(event) => {
+                      // Stop the dialog-level Cmd+F / Esc handlers from firing.
+                      event.stopPropagation()
+                      if (event.key === 'Enter') commitRename()
+                      else if (event.key === 'Escape') {
+                        renamingIdRef.current = null
+                        setRenamingId(null)
+                      }
+                    }}
+                  />
+                )
+                : <span className="dsh-devpanel-tab-label">{tabLabel}</span>}
+              <span
+                className="dsh-devpanel-tab-close"
+                role="button"
+                aria-label={t('dialog.closeTab')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  closeTab(session.view.id)
+                }}
+              >
+                ×
+              </span>
+            </div>
+          )
+        })}
         <div className="dsh-devpanel-tabs-actions">
+          <button
+            type="button"
+            className="dsh-devpanel-palette-open"
+            aria-label={t('dialog.palette.open')}
+            title={t('dialog.palette.open')}
+            onClick={() => { if (paletteOpen) closePalette(); else openPalette() }}
+          >
+            ⌘K
+          </button>
           <button
             type="button"
             className="dsh-devpanel-tab-add"
@@ -783,6 +1081,127 @@ function TerminateView({
           >
             ×
           </button>
+        </div>
+      )}
+      {paletteOpen && (
+        // stopPropagation keeps clicks inside the palette from bubbling to the
+        // dialog root (harmless today, but the overlay must not inherit any
+        // future dialog-level click handling).
+        <div className="dsh-devpanel-palette" onClick={event => event.stopPropagation()}>
+          <input
+            ref={paletteInputRef}
+            type="text"
+            className="dsh-devpanel-palette-filter"
+            value={paletteFilter}
+            placeholder={t('dialog.palette.placeholder')}
+            onChange={(event) => {
+              setPaletteFilter(event.target.value)
+              setPaletteIndex(0)
+            }}
+            onKeyDown={(event) => {
+              // Stop the dialog-level Cmd+F/K/Esc handlers from double-firing.
+              event.stopPropagation()
+              if (event.key === 'ArrowDown') {
+                event.preventDefault()
+                setPaletteIndex(Math.min(activeSnippetIndex + 1, filteredSnippets.length - 1))
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault()
+                setPaletteIndex(Math.max(activeSnippetIndex - 1, 0))
+              } else if (event.key === 'Enter') {
+                event.preventDefault()
+                if (filteredSnippets.length > 0) sendSnippet(filteredSnippets[activeSnippetIndex]!)
+              }
+            }}
+          />
+          {addingSnippet ? (
+            <div className="dsh-devpanel-palette-add">
+              <input
+                type="text"
+                value={newSnippetName}
+                placeholder={t('dialog.palette.name')}
+                aria-label={t('dialog.palette.name')}
+                onChange={(event) => { setNewSnippetName(event.target.value) }}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addSnippet()
+                  } else if (event.key === 'Escape') {
+                    setAddingSnippet(false)
+                    setNewSnippetName('')
+                    setNewSnippetCommand('')
+                  }
+                }}
+              />
+              <input
+                type="text"
+                value={newSnippetCommand}
+                placeholder={t('dialog.palette.command')}
+                aria-label={t('dialog.palette.command')}
+                onChange={(event) => { setNewSnippetCommand(event.target.value) }}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addSnippet()
+                  } else if (event.key === 'Escape') {
+                    setAddingSnippet(false)
+                    setNewSnippetName('')
+                    setNewSnippetCommand('')
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="dsh-devpanel-palette-save"
+                disabled={newSnippetName.trim() === '' || newSnippetCommand.trim() === ''}
+                onClick={addSnippet}
+              >
+                {t('dialog.palette.save')}
+              </button>
+            </div>
+          ) : (
+            <div className="dsh-devpanel-palette-list" role="listbox" aria-label={t('dialog.palette.open')}>
+              {filteredSnippets.length === 0
+                ? <div className="dsh-devpanel-palette-empty">{t('dialog.palette.empty')}</div>
+                : filteredSnippets.map((snippet, index) => (
+                  <div
+                    key={`${snippet.custom ? 'u' : 'b'}:${snippet.name}`}
+                    className="dsh-devpanel-palette-row"
+                    role="option"
+                    aria-selected={index === activeSnippetIndex || undefined}
+                    data-active={index === activeSnippetIndex || undefined}
+                    onMouseMove={() => { setPaletteIndex(index) }}
+                    onClick={() => sendSnippet(snippet)}
+                  >
+                    <span className="dsh-devpanel-palette-name">{snippet.name}</span>
+                    <span className="dsh-devpanel-palette-command">{snippet.command}</span>
+                    {snippet.custom && (
+                      <span
+                        className="dsh-devpanel-palette-delete"
+                        role="button"
+                        aria-label={t('dialog.palette.delete')}
+                        title={t('dialog.palette.delete')}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          deleteSnippet(snippet)
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+          <div className="dsh-devpanel-palette-footer">
+            <span>{t('dialog.palette.hint')}</span>
+            {!addingSnippet && (
+              <button type="button" className="dsh-devpanel-palette-new" onClick={() => { setAddingSnippet(true) }}>
+                {t('dialog.palette.add')}
+              </button>
+            )}
+          </div>
         </div>
       )}
       <div

@@ -110,6 +110,50 @@ export const CONSOLE_CSS = `
 .dsh-devpanel-tree-row:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
 }
+/* Directory rows are a wrapper holding a filled toggle + a terminal button,
+   so the wrapper carries the hover and the indent moves to the toggle. */
+.dsh-devpanel-tree-row.dsh-devpanel-tree-dirrow {
+  padding: 0 4px 0 0;
+}
+.dsh-devpanel-tree-dirrow:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-devpanel-tree-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  padding-left: calc(8px + var(--dsh-tree-depth, 0) * 14px);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dsh-devpanel-tree-open {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  opacity: 0;
+}
+.dsh-devpanel-tree-dirrow:hover .dsh-devpanel-tree-open,
+.dsh-devpanel-tree-open:hover {
+  opacity: 1;
+}
+.dsh-devpanel-tree-open:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+}
 .dsh-devpanel-tree-caret {
   flex: none;
   width: 12px;
@@ -149,17 +193,46 @@ export const CONSOLE_CSS = `
      itself can never be covered by width alone: the classic scrollbar's
      track paints above all content, so the scroller's track is themed
      transparent below (see the [data-conversation-scroll] rules). */
+  /* Terminal panel surface tokens: dark by default (matching the pre-theme
+     behavior and the embedded terminal look); the light override below swaps
+     them when the harness palette is light (body has no data-ds-dark-theme). */
+  --dsh-term-bg: #1b1b1f;
+  --dsh-term-fg: #e4e4e7;
+  --dsh-term-border: #2c2c31;
+  --dsh-term-surface: #26262c;
+  --dsh-term-surface-active: #2c2c33;
+  --dsh-term-muted: #9b9ba3;
+  --dsh-term-danger: #f26d78;
+  --dsh-term-badge-border: #3b3b40;
+  --dsh-term-scroll-thumb: rgba(255, 255, 255, 0.22);
+  --dsh-term-hover-tint: rgba(255, 255, 255, 0.12);
   width: calc(100% + var(--dsh-composer-side-clearance, 16px) + var(--dsh-composer-side-clearance, 16px) + var(--dsh-scrollbar-width, 8px) + 8px);
   margin: 0 0 -8px;
   margin-left: calc(0px - var(--dsh-composer-side-clearance, 16px));
   margin-right: calc(0px - var(--dsh-composer-side-clearance, 16px) - var(--dsh-scrollbar-width, 8px) - 8px);
+  /* Anchor for absolutely-positioned overlays (the Cmd/Ctrl+K snippet palette). */
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  background: #1b1b1f;
-  color: #e4e4e7;
+  background: var(--dsh-term-bg);
+  color: var(--dsh-term-fg);
   font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* Light harness palette (no dark attribute): the panel chrome follows the
+   light surface with re-tuned muted/danger/border tints. */
+body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
+  --dsh-term-bg: #ffffff;
+  --dsh-term-fg: #1f2937;
+  --dsh-term-border: #d1d5db;
+  --dsh-term-surface: #f3f4f6;
+  --dsh-term-surface-active: #e5e7eb;
+  --dsh-term-muted: #6b7280;
+  --dsh-term-danger: #dc2626;
+  --dsh-term-badge-border: #d1d5db;
+  --dsh-term-scroll-thumb: rgba(0, 0, 0, 0.22);
+  --dsh-term-hover-tint: rgba(0, 0, 0, 0.08);
 }
 .dsh-devpanel-dialog-header {
   display: flex;
@@ -167,7 +240,7 @@ export const CONSOLE_CSS = `
   gap: 12px;
   flex: none;
   padding: 6px 12px;
-  border-bottom: 1px solid #2c2c31;
+  border-bottom: 1px solid var(--dsh-term-border);
 }
 .dsh-devpanel-dialog-header .dsh-devpanel-status {
   margin-left: 0;
@@ -204,7 +277,7 @@ export const CONSOLE_CSS = `
   gap: 6px;
   flex: none;
   padding: 6px 8px;
-  border-bottom: 1px solid #2c2c31;
+  border-bottom: 1px solid var(--dsh-term-border);
   overflow-x: auto;
   scrollbar-width: thin;
   /* The dialog bleeds ~8px past the scrollport's right edge (see
@@ -218,9 +291,9 @@ export const CONSOLE_CSS = `
 .dsh-devpanel-shell-badge {
   flex: none;
   padding: 1px 8px;
-  border: 1px solid #3b3b40;
+  border: 1px solid var(--dsh-term-badge-border);
   border-radius: 999px;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -234,32 +307,62 @@ export const CONSOLE_CSS = `
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   font: inherit;
   cursor: pointer;
 }
 .dsh-devpanel-tab:hover {
-  background: #26262c;
+  background: var(--dsh-term-surface);
 }
 .dsh-devpanel-tab[data-active] {
-  background: #2c2c33;
-  color: #e4e4e7;
+  background: var(--dsh-term-surface-active);
+  color: var(--dsh-term-fg);
+}
+/* "Completed" flash (BEL byte or the foreground process exiting): the tab
+   blinks its border between the idle and a business highlight so the user
+   notices output that landed off-screen. The flash is contact/active-bound;
+   recomputing the animation is cheap, so it replays from the start whenever
+   data-notify is set. */
+@keyframes dsh-devpanel-tab-notify {
+  0%, 100% { box-shadow: 0 0 0 1px transparent; }
+  50% { box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary, #2563eb); }
+}
+.dsh-devpanel-tab[data-notify] {
+  animation: dsh-devpanel-tab-notify 1.2s ease-in-out 2;
+}
+.dsh-devpanel-tab[data-notify]:hover {
+  background: var(--dsh-term-surface-active);
 }
 .dsh-devpanel-tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Inline rename input replacing the label while a tab is being renamed. */
+.dsh-devpanel-tab-rename {
+  min-width: 60px;
+  max-width: 140px;
+  padding: 0 4px;
+  border: 1px solid var(--dsh-term-border);
+  border-radius: 4px;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
+  font: inherit;
+  outline: none;
+}
+.dsh-devpanel-tab-rename:focus {
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+}
 .dsh-devpanel-tab-close {
   flex: none;
   padding: 0 4px;
   border-radius: 3px;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   line-height: 1.4;
 }
 .dsh-devpanel-tab-close:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f26d78;
+  background: var(--dsh-term-hover-tint);
+  color: var(--dsh-term-danger);
 }
 .dsh-devpanel-tabs-actions {
   /* Keep the trailing +/× pinned to the visible right edge while the tab
@@ -274,7 +377,7 @@ export const CONSOLE_CSS = `
   gap: 2px;
   margin-left: auto;
   flex: none;
-  background: #1b1b1f;
+  background: var(--dsh-term-bg);
   box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.55);
 }
 .dsh-devpanel-tab-add {
@@ -282,23 +385,23 @@ export const CONSOLE_CSS = `
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
   cursor: pointer;
 }
 .dsh-devpanel-tab-add:hover {
-  background: #26262c;
-  color: #e4e4e7;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
 }
 .dsh-devpanel-tabs-actions .dsh-devpanel-close {
   margin-left: 0;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
 }
 .dsh-devpanel-tabs-actions .dsh-devpanel-close:hover {
-  background: #26262c;
-  color: #f26d78;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-danger);
 }
 
 /* Terminal search bar (Cmd/Ctrl+F): input + result counter + prev/next + close,
@@ -309,17 +412,17 @@ export const CONSOLE_CSS = `
   gap: 6px;
   flex: none;
   padding: 4px 12px;
-  background: #1b1b1f;
-  border-bottom: 1px solid #2c2c31;
+  background: var(--dsh-term-bg);
+  border-bottom: 1px solid var(--dsh-term-border);
 }
 .dsh-devpanel-search input {
   flex: 1;
   min-width: 0;
   padding: 2px 8px;
-  border: 1px solid #2c2c31;
+  border: 1px solid var(--dsh-term-border);
   border-radius: 4px;
-  background: #26262c;
-  color: #e4e4e7;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
   font: inherit;
   outline: none;
 }
@@ -327,11 +430,11 @@ export const CONSOLE_CSS = `
   border-color: var(--dsw-alias-state-business-primary, #2563eb);
 }
 .dsh-devpanel-search input::placeholder {
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
 }
 .dsh-devpanel-search-count {
   flex: none;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   font-size: 11px;
   min-width: 34px;
   text-align: right;
@@ -342,17 +445,181 @@ export const CONSOLE_CSS = `
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #9b9ba3;
+  color: var(--dsh-term-muted);
   font: inherit;
   line-height: 1.5;
   cursor: pointer;
 }
 .dsh-devpanel-search button:hover {
-  background: #26262c;
-  color: #e4e4e7;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
 }
 .dsh-devpanel-search .dsh-devpanel-search-close:hover {
-  color: #f26d78;
+  color: var(--dsh-term-danger);
+}
+
+/* Command snippet palette (Cmd/Ctrl+K): an overlay anchored under the tab
+   strip — filter input, snippet rows, and an add-form for user snippets.
+   Themed with the terminal tokens so it reads as part of the panel. */
+.dsh-devpanel-tabs-actions .dsh-devpanel-palette-open {
+  flex: none;
+  padding: 1px 7px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsh-term-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.dsh-devpanel-tabs-actions .dsh-devpanel-palette-open:hover {
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
+}
+.dsh-devpanel-palette {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(520px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dsh-term-border);
+  border-radius: 8px;
+  background: var(--dsh-term-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.dsh-devpanel-palette-filter {
+  flex: none;
+  margin: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsh-term-border);
+  border-radius: 6px;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
+  font: inherit;
+  outline: none;
+}
+.dsh-devpanel-palette-filter:focus {
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-devpanel-palette-filter::placeholder {
+  color: var(--dsh-term-muted);
+}
+.dsh-devpanel-palette-add {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+.dsh-devpanel-palette-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--dsh-term-border);
+  border-radius: 6px;
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
+  font: inherit;
+  outline: none;
+}
+.dsh-devpanel-palette-add input::placeholder {
+  color: var(--dsh-term-muted);
+}
+.dsh-devpanel-palette-save {
+  flex: none;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--dsw-alias-state-business-primary, #2563eb);
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-devpanel-palette-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dsh-devpanel-palette-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+.dsh-devpanel-palette-empty {
+  padding: 10px;
+  text-align: center;
+  color: var(--dsh-term-muted);
+}
+.dsh-devpanel-palette-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 4px);
+  margin: 2px;
+  padding: 4px 28px 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dsh-devpanel-palette-row[data-active] {
+  background: var(--dsh-term-surface);
+}
+.dsh-devpanel-palette-row[data-active] .dsh-devpanel-palette-name {
+  color: var(--dsh-term-fg);
+}
+.dsh-devpanel-palette-name {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsh-term-fg);
+}
+.dsh-devpanel-palette-command {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsh-term-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+.dsh-devpanel-palette-delete {
+  position: absolute;
+  right: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--dsh-term-muted);
+  cursor: pointer;
+}
+.dsh-devpanel-palette-delete:hover {
+  background: var(--dsh-term-surface-active);
+  color: var(--dsh-term-danger);
+}
+.dsh-devpanel-palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 5px 12px;
+  border-top: 1px solid var(--dsh-term-border);
+  color: var(--dsh-term-muted);
+  font-size: 11px;
+}
+.dsh-devpanel-palette-new {
+  padding: 1px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsh-term-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-devpanel-palette-new:hover {
+  background: var(--dsh-term-surface);
+  color: var(--dsh-term-fg);
 }
 
 /* Band-height drag handle: a slim strip above the terminals band that the
@@ -362,10 +629,10 @@ export const CONSOLE_CSS = `
   height: 6px;
   cursor: ns-resize;
   touch-action: none;
-  background: #1b1b1f;
+  background: var(--dsh-term-bg);
 }
 .dsh-devpanel-resize:hover {
-  background: #2c2c33;
+  background: var(--dsh-term-surface-active);
 }
 
 /* Every tab's terminal mount lives in one band; only the active one shows. */
@@ -379,7 +646,7 @@ export const CONSOLE_CSS = `
   inset: 0;
   overflow: hidden;
   display: none;
-  background: #1b1b1f;
+  background: var(--dsh-term-bg);
 }
 .dsh-devpanel-terminal[data-active] {
   display: block;
@@ -451,7 +718,7 @@ export const CONSOLE_CSS = `
   border-color: var(--dsw-alias-state-business-primary, #2563eb);
 }
 .dsh-devpanel-terminal .xterm-viewport {
-  background-color: #1b1b1f !important;
+  background-color: var(--dsh-term-bg) !important;
 }
 /* The chat scroller's classic scrollbar runs the whole column height, so its
    light track and thumb read as a white strip beside the dark terminal band.
@@ -473,7 +740,7 @@ export const CONSOLE_CSS = `
 /* The terminal scrolls inside its own viewport: theme its bar dark too, so no
    engine-default light bar appears within the dark panel. */
 .dsh-devpanel-terminal .xterm-viewport {
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-color: var(--dsh-term-scroll-thumb) transparent;
   scrollbar-width: thin;
 }
 .dsh-devpanel-terminal .xterm-viewport::-webkit-scrollbar {
@@ -483,7 +750,7 @@ export const CONSOLE_CSS = `
   background: transparent;
 }
 .dsh-devpanel-terminal .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--dsh-term-scroll-thumb);
   border-radius: 999px;
 }
 /* The multi-tab bar scrolls horizontally when tabs overflow: same dark-theme
@@ -495,7 +762,7 @@ export const CONSOLE_CSS = `
   background: transparent;
 }
 .dsh-devpanel-tabs::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--dsh-term-scroll-thumb);
   border-radius: 999px;
 }
 .dsh-devpanel-empty {
@@ -588,6 +855,91 @@ export const CONSOLE_CSS = `
 .dsh-devpanel-file-maximize:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--dsw-alias-label-primary, #111827);
+}
+/* "Open in terminal": writes cd + cat into the active PTY session. Same
+   ghost-button treatment as the maximize toggle, with a monospace hint. */
+.dsh-devpanel-file-terminal {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+}
+.dsh-devpanel-file-terminal:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+/* Tail (-f like) log-view toggle: text-button state mirrors the maximize
+   ghost button, but highlights (pressed) to signal the live-stream is on. */
+.dsh-devpanel-file-tail {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.dsh-devpanel-file-tail:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-devpanel-file-tail[data-active] {
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+  background: var(--dsw-alias-fill-primary-hover, rgba(37, 99, 235, 0.1));
+}
+/* Diff mode (this session's edits vs the raw body): the toggle matches the
+   tail button's pressed style; the pane is a scrolled diff surface. */
+.dsh-devpanel-file-diff {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.dsh-devpanel-file-diff:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-devpanel-file-diff[data-active] {
+  border-color: var(--dsw-alias-state-business-primary, #2563eb);
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+  background: var(--dsw-alias-fill-primary-hover, rgba(37, 99, 235, 0.1));
+}
+.dsh-devpanel-file-history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+/* Live log pane: monospace, scrolls with new lines, wraps long lines. */
+.dsh-devpanel-tail {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: var(--dsh-term-bg, #1b1b1f);
+}
+.dsh-devpanel-tail-content {
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--dsh-term-fg, #e4e4e7);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dsh-devpanel-tail-gone {
+  color: var(--dsh-term-danger, #f26d78);
+  font-style: italic;
 }
 .dsh-devpanel-file-content {
   flex: 1;
