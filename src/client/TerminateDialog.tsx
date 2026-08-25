@@ -735,6 +735,32 @@ function TerminateView({
     return () => { observer.disconnect() }
   }, [])
 
+  // ⌘K/⌘F stay reachable while the dialog is open even when focus sits
+  // outside it (composer, sidebar, header): the dialog's own onKeyDown only
+  // sees events originating inside the dialog. A window listener bridges the
+  // gap — but only while open, and only for events whose target is NOT inside
+  // the dialog (the dialog-level handler owns those, so they don't double-fire).
+  useEffect(() => {
+    if (!open) return
+    const onWindowKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.dsh-devpanel-dialog')) return
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey === true) return
+      const key = event.key.toLowerCase()
+      if (key === 'k') {
+        event.preventDefault()
+        if (paletteOpen) closePalette()
+        else openPalette()
+      } else if (key === 'f') {
+        event.preventDefault()
+        setSearchOpen(true)
+        window.requestAnimationFrame(() => searchInputRef.current?.focus())
+      }
+    }
+    window.addEventListener('keydown', onWindowKeyDown)
+    return () => { window.removeEventListener('keydown', onWindowKeyDown) }
+  }, [open, paletteOpen])
+
   // Re-fit the active tab's viewport when its mount changes size (the dock
   // band is responsive; the PTY size stays at spawn-time values since the
   // subprocess handle exposes no resize, so only the render layer adapts).
@@ -987,6 +1013,8 @@ function TerminateView({
                     onBlur={commitRename}
                     onKeyDown={(event) => {
                       // Stop the dialog-level Cmd+F / Esc handlers from firing.
+                      // ⌘/Ctrl combos (⌘F search, ⌘K palette) still bubble up.
+                      if (event.metaKey || event.ctrlKey) return
                       event.stopPropagation()
                       if (event.key === 'Enter') commitRename()
                       else if (event.key === 'Escape') {
@@ -1111,7 +1139,9 @@ function TerminateView({
               setPaletteIndex(0)
             }}
             onKeyDown={(event) => {
-              // Stop the dialog-level Cmd+F/K/Esc handlers from double-firing.
+              // ⌘/Ctrl combos (⌘F search, ⌘K palette) bubble to the dialog
+              // handler; plain keys are handled here, so stop them below.
+              if (event.metaKey || event.ctrlKey) return
               event.stopPropagation()
               if (event.key === 'ArrowDown') {
                 event.preventDefault()
@@ -1122,6 +1152,11 @@ function TerminateView({
               } else if (event.key === 'Enter') {
                 event.preventDefault()
                 if (filteredSnippets.length > 0) sendSnippet(filteredSnippets[activeSnippetIndex]!)
+              } else if (event.key === 'Escape') {
+                // Propagation is stopped here, so the dialog-level Esc
+                // handler never sees it — close the palette ourselves.
+                event.preventDefault()
+                closePalette()
               }
             }}
           />
@@ -1134,6 +1169,8 @@ function TerminateView({
                 aria-label={t('dialog.palette.name')}
                 onChange={(event) => { setNewSnippetName(event.target.value) }}
                 onKeyDown={(event) => {
+                  // ⌘/Ctrl combos bubble to the dialog handler (⌘F/⌘K).
+                  if (event.metaKey || event.ctrlKey) return
                   event.stopPropagation()
                   if (event.key === 'Enter') {
                     event.preventDefault()
@@ -1152,6 +1189,8 @@ function TerminateView({
                 aria-label={t('dialog.palette.command')}
                 onChange={(event) => { setNewSnippetCommand(event.target.value) }}
                 onKeyDown={(event) => {
+                  // ⌘/Ctrl combos bubble to the dialog handler (⌘F/⌘K).
+                  if (event.metaKey || event.ctrlKey) return
                   event.stopPropagation()
                   if (event.key === 'Enter') {
                     event.preventDefault()
