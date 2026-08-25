@@ -995,6 +995,66 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   border-radius: 4px;
   background: var(--dsw-alias-bg-layer-1, #f9fafb);
 }
+/* PDF: the iframe fills the scrollable pane (browser-native viewer). */
+.dsh-devpanel-file-pdf {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  display: flex;
+}
+.dsh-devpanel-file-pdf iframe {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1, #f9fafb);
+}
+/* Audio: a slim inline player; video: a full-width inline player. */
+.dsh-devpanel-file-audio,
+.dsh-devpanel-file-video {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dsh-devpanel-file-audio audio {
+  width: 100%;
+  max-width: 480px;
+}
+.dsh-devpanel-file-video video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+}
+/* Binary notice: explain the file instead of rendering decoded garbage. */
+.dsh-devpanel-file-binary {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-devpanel-file-binary-title {
+  margin: 0;
+  font-weight: 600;
+}
+.dsh-devpanel-file-binary-hint,
+.dsh-devpanel-file-binary-size {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
 /* Fullscreen file viewer: fixed overlay covering the whole frame. */
 .dsh-devpanel-file-fullscreen {
   position: fixed;
@@ -1023,7 +1083,11 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 .dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-content,
 .dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-code,
 .dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-image,
-.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-markdown {
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-markdown,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-pdf,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-audio,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-video,
+.dsh-devpanel-file-fullscreen-body .dsh-devpanel-file-binary {
   padding: 16px 24px;
 }
 .dsh-devpanel-file-markdown {

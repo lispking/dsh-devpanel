@@ -12,6 +12,9 @@ export type ConsoleKey =
   | 'sidebar.empty'
   | 'sidebar.select'
   | 'sidebar.readError'
+  | 'sidebar.binary'
+  | 'sidebar.binaryHint'
+  | 'sidebar.binarySize'
   | 'sidebar.maximize'
   | 'sidebar.openInTerminal'
   | 'sidebar.tail'
@@ -65,6 +68,9 @@ export const zh: Record<ConsoleKey, string> = {
   'sidebar.empty': '当前会话暂无文件',
   'sidebar.select': '选择左侧文件查看内容',
   'sidebar.readError': '读取文件失败',
+  'sidebar.binary': '二进制文件',
+  'sidebar.binaryHint': '该文件类型无法以文本预览',
+  'sidebar.binarySize': '大小',
   'sidebar.maximize': '全屏查看',
   'sidebar.openInTerminal': '在终端中打开',
   'sidebar.tail': '实时跟踪日志（tail -f）',
@@ -112,6 +118,9 @@ export const en: Record<ConsoleKey, string> = {
   'sidebar.empty': 'No files in the current session yet',
   'sidebar.select': 'Select a file on the left to view its content',
   'sidebar.readError': 'Failed to read the file',
+  'sidebar.binary': 'Binary file',
+  'sidebar.binaryHint': 'This file type cannot be previewed as text',
+  'sidebar.binarySize': 'Size',
   'sidebar.maximize': 'View fullscreen',
   'sidebar.openInTerminal': 'Open in terminal',
   'sidebar.tail': 'Tail the log (tail -f)',

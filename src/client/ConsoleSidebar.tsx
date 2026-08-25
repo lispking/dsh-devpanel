@@ -21,7 +21,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ConsoleListDirResult, ConsoleReadFileResult } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
 import type { TerminalPanelFace } from './TerminateDialog.tsx'
-import { NS } from './locales.ts'
+import { NS, type ConsoleKey } from './locales.ts'
 
 /** Injected business face of the sidebar. */
 export interface ConsoleSidebarInjected {
@@ -205,16 +205,85 @@ function codeLangOf(path: string): string | undefined {
     case 'php': return 'php'
     case 'xml': return 'xml'
     case 'svg': return 'xml'
+    case 'vue': return 'vue'
+    case 'svelte': return 'svelte'
+    case 'kt': return 'kotlin'
+    case 'kts': return 'kotlin'
+    case 'swift': return 'swift'
+    case 'dart': return 'dart'
+    case 'lua': return 'lua'
+    case 'cs': return 'csharp'
+    case 'scala': return 'scala'
+    case 'pl': return 'perl'
+    case 'pm': return 'perl'
+    case 'r': return 'r'
+    case 'ps1': return 'powershell'
+    case 'hs': return 'haskell'
+    case 'ex': return 'elixir'
+    case 'exs': return 'elixir'
+    case 'clj': return 'clojure'
+    case 'cljs': return 'clojure'
+    case 'groovy': return 'groovy'
+    case 'gradle': return 'gradle'
+    case 'ini': return 'ini'
+    case 'conf': return 'ini'
     default: return undefined
   }
 }
 
-/** Render one read file: images as <img>, markdown rendered, code highlighted, else plain text. */
-function FileBody({ result }: { result: ConsoleReadFileResult }) {
+/** Human-readable byte size for the binary-file notice. */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = 'B'
+  for (const next of units) {
+    value /= 1024
+    unit = next
+    if (value < 1024) break
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${unit}`
+}
+
+/**
+ * Render one read file: media (image/pdf/audio/video) natively, markdown
+ * rendered, code highlighted, a binary notice, else plain text.
+ */
+function FileBody({ result, t }: { result: ConsoleReadFileResult; t: (key: ConsoleKey) => string }) {
   if (result.kind === 'image' && result.dataUrl !== undefined) {
     return (
       <div className="dsh-devpanel-file-image">
         <img src={result.dataUrl} alt={result.path} />
+      </div>
+    )
+  }
+  if (result.kind === 'pdf' && result.dataUrl !== undefined) {
+    return (
+      <div className="dsh-devpanel-file-pdf">
+        <iframe src={result.dataUrl} title={result.path} />
+      </div>
+    )
+  }
+  if (result.kind === 'audio' && result.dataUrl !== undefined) {
+    return (
+      <div className="dsh-devpanel-file-audio">
+        <audio controls src={result.dataUrl} />
+      </div>
+    )
+  }
+  if (result.kind === 'video' && result.dataUrl !== undefined) {
+    return (
+      <div className="dsh-devpanel-file-video">
+        <video controls src={result.dataUrl} />
+      </div>
+    )
+  }
+  if (result.kind === 'binary') {
+    return (
+      <div className="dsh-devpanel-file-binary">
+        <p className="dsh-devpanel-file-binary-title">{t('sidebar.binary')}</p>
+        <p className="dsh-devpanel-file-binary-hint">{t('sidebar.binaryHint')}</p>
+        <p className="dsh-devpanel-file-binary-size">{t('sidebar.binarySize')}: {formatSize(result.size ?? 0)}</p>
       </div>
     )
   }
@@ -613,7 +682,7 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
                         <DiffBlock diffs={activeHunks} />
                       </div>
                     )
-                    : <FileBody result={result} />}
+                    : <FileBody result={result} t={t} />}
               </>
             )}
       </div>
@@ -632,7 +701,7 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
           </button>
         </div>
         <div className="dsh-devpanel-file-fullscreen-body">
-          <FileBody result={result} />
+          <FileBody result={result} t={t} />
         </div>
       </div>
     )}
