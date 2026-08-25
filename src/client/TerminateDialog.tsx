@@ -351,6 +351,9 @@ interface TerminalSessionUi {
   cwd?: string
   /** The working directory this tab was spawned in (restore fallback). */
   spawnCwd?: string
+  /** Whether the user manually renamed this tab: the label then wins over
+   *  OSC titles emitted by the shell. */
+  renamed?: boolean
   /** Whether the tab should flash a "completed" highlight: set on process
    *  exit or a BEL byte, cleared when its tab is focused/clicked. */
   notify: boolean
@@ -672,6 +675,9 @@ function TerminateView({
         pendingFinalRead: false,
         pendingOsc: '',
         notify: false,
+        // A restored tab keeps its manual-rename status too, so later OSC
+        // titles do not start overwriting the label again.
+        ...(prior?.renamed === true ? { renamed: true } : {}),
       }
     })
     tabsRef.current = adopted
@@ -850,7 +856,9 @@ function TerminateView({
       const { title, cwd, tail } = scanOsc(`${session.pendingOsc}${delta}`)
       session.pendingOsc = tail
       if (cwd !== null && cwd !== session.cwd) session.cwd = cwd
-      if (title !== null && title !== session.view.name) {
+      // OSC titles label the tab UNLESS the user renamed it manually — a
+      // rename must survive the next command's title update.
+      if (title !== null && !session.renamed && title !== session.view.name) {
         session.view.name = title
         // The tab label reads view.name: force the tab bar to re-render.
         setTabs([...tabsRef.current])
@@ -1013,6 +1021,8 @@ function TerminateView({
     const session = tabsRef.current.find(candidate => candidate.view.id === id)
     if (session === undefined) return
     session.view.name = trimmed
+    // A manual label wins over later OSC titles from the shell.
+    session.renamed = true
     // The tab label reads view.name: force the tab bar to re-render.
     setTabs([...tabsRef.current])
   }
