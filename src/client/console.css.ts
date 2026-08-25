@@ -252,6 +252,11 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 
 .dsh-devpanel-title {
   font-weight: 600;
+  /* The title is the first flex item of the scrollable tab strip: without
+     flex:none it shrinks when tabs overflow and the two CJK characters wrap
+     onto separate lines. Keep it on one line, fixed. */
+  flex: none;
+  white-space: nowrap;
 }
 .dsh-devpanel-close {
   margin-left: auto;
