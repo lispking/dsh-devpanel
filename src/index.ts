@@ -32,9 +32,20 @@ import type {
   ConsoleWriteResult,
   ConsoleTailResult,
 } from './types.ts'
+import {
+  TERMINAL_EVENTS,
+  UsageService,
+  type TerminalCommandEvent,
+  type TerminalDisposeEvent,
+  type TerminalExitEvent,
+  type TerminalSpawnEvent,
+} from './usage.ts'
 
 /** Retained scrollback cap per session; overflow keeps the TAIL. */
 const MAX_SCROLLBACK_BYTES = 1_000_000
+
+/** Cap on the tracked partial input line; overflow stops tracking that line. */
+const MAX_INPUT_BUFFER = 64 * 1024
 
 /** Overall teardown budget at plugin unload; a stuck PTY must not hang the host. */
 const DISPOSE_BUDGET_MS = 5_000
@@ -116,6 +127,8 @@ interface SessionRecord {
   buffer: string
   /** Read cursor for delta consumption. */
   readOffset: number
+  /** Accumulated input since the last line terminator, for command tracking. */
+  inputBuffer: string
   /** Current top-level process status. */
   status: ConsoleSessionStatus
 }
@@ -124,6 +137,8 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** User-facing terminal panel service (dsh-devpanel). */
     terminalPanel: TerminalPanelService
+    /** Usage panel service (dsh-devpanel): AI + terminal usage stats. */
+    usagePanel: UsageService
   }
 }
 
@@ -193,9 +208,17 @@ export class TerminalPanelService extends TypertRemoteService {
       decoder: new TextDecoder('utf-8'),
       buffer: '',
       readOffset: 0,
+      inputBuffer: '',
       status: { kind: 'running' },
     }
     this.sessions.set(id, record)
+    this.ctx.emit(TERMINAL_EVENTS.spawn, {
+      id,
+      time: Date.now(),
+      shell,
+      cwd,
+      ...(request.owner === undefined ? {} : { owner: request.owner }),
+    } satisfies TerminalSpawnEvent)
     // Consume the live output stream into the bounded scrollback; the exit
     // promise drives the status transition (a transport failure also settles).
     handle.output.on('data', (chunk: unknown) => {
@@ -217,9 +240,16 @@ export class TerminalPanelService extends TypertRemoteService {
     void handle.done.then(
       (outcome) => {
         record.status = { kind: 'exited', exitCode: outcome.exitCode, signal: outcome.signal }
+        this.ctx.emit(TERMINAL_EVENTS.exit, {
+          id,
+          time: Date.now(),
+          exitCode: outcome.exitCode,
+          signal: outcome.signal,
+        } satisfies TerminalExitEvent)
       },
       () => {
         record.status = { kind: 'exited', exitCode: null, signal: null }
+        this.ctx.emit(TERMINAL_EVENTS.exit, { id, time: Date.now(), exitCode: null, signal: null } satisfies TerminalExitEvent)
       },
     )
     return { id, pid: handle.pid, shell }
@@ -235,8 +265,37 @@ export class TerminalPanelService extends TypertRemoteService {
   @Remote
   async write(id: string, text: string, submit: boolean): Promise<ConsoleWriteResult> {
     const record = this.expect(id)
-    await record.handle.write(submit ? `${text}\r` : text)
+    const payload = submit ? `${text}\r` : text
+    await record.handle.write(payload)
+    this.trackCommand(record, payload)
     return { ok: true }
+  }
+
+  /**
+   * Track submitted commands from the input stream. The client streams every
+   * keystroke with submit=false (Enter arrives as `\r`), so a command is only
+   * known once a line terminator lands; `submit=true` appends `\r` here, which
+   * the same splitter treats as a completed line. Only the command NAME (the
+   * first token) is emitted — the full text never leaves the host, so
+   * sensitive arguments are not persisted anywhere.
+   * @param record - the session whose input is being tracked.
+   * @param payload - the exact bytes written to the PTY.
+   */
+  private trackCommand(record: SessionRecord, payload: string): void {
+    record.inputBuffer += payload
+    if (record.inputBuffer.length > MAX_INPUT_BUFFER) {
+      // A pathological paste without a terminator: stop tracking this line.
+      record.inputBuffer = ''
+      return
+    }
+    const lines = record.inputBuffer.split(/\r\n|\r|\n/)
+    record.inputBuffer = lines.pop() ?? ''
+    for (const line of lines) {
+      const name = line.trim().split(/\s+/)[0]
+      if (name !== undefined && name.length > 0) {
+        this.ctx.emit(TERMINAL_EVENTS.command, { id: record.id, time: Date.now(), name } satisfies TerminalCommandEvent)
+      }
+    }
   }
 
   /**
@@ -304,6 +363,7 @@ export class TerminalPanelService extends TypertRemoteService {
     const record = this.sessions.get(id)
     if (record === undefined) return { ok: true }
     this.sessions.delete(id)
+    this.ctx.emit(TERMINAL_EVENTS.dispose, { id, time: Date.now() } satisfies TerminalDisposeEvent)
     if (record.status.kind === 'running') {
       await record.handle.terminate().catch(() => undefined)
     }
@@ -468,4 +528,26 @@ export class TerminalPanelService extends TypertRemoteService {
   }
 }
 
-export default TerminalPanelService
+/** Plugin name (mirrors the `cordis.patch.yml` bundle row). */
+export const name = 'dsh-devpanel'
+/** Required host services for the plugin's apply wiring. */
+export const inject = ['subprocess'] as const
+
+/**
+ * Plugin body: wire the usage panel FIRST so it subscribes to the terminal
+ * event stream before any session can spawn, then the terminal panel service.
+ * Both are TypertRemoteServices discovered by the Gateway through their
+ * `typertRemote` bindings.
+ */
+export const apply = (ctx: Context): void => {
+  new UsageService(ctx)
+  new TerminalPanelService(ctx)
+}
+
+export { UsageService } from './usage.ts'
+// The default export MUST be an object carrying `name`/`inject`/`apply`: the
+// loader unwraps `exports.default ?? exports` and drops sibling named exports,
+// so a bare function default would lose the `subprocess` inject — the plugin
+// would run before the subprocess service is ready and terminal spawns would
+// fail (white panel). An object keeps cordis's `plugin()` reading `inject`.
+export default { name, inject, apply }

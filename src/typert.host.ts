@@ -32,8 +32,21 @@ import {
   tailResultSchema,
   signalSchema,
 } from './schemas.ts'
+import {
+  usageCallsPageSchema,
+  usageCallsQuerySchema,
+  usageExportJsonResultSchema,
+  usageExportResultSchema,
+  usageQuerySchema,
+  usageSnapshotSchema,
+  usageTerminalsPageSchema,
+  usageTerminalsQuerySchema,
+} from './usage-schemas.ts'
 
 const NAMESPACE = 'terminalPanel'
+
+/** Wire namespace of the usage panel service (see `src/usage.ts`). */
+const USAGE_NAMESPACE = 'usagePanel'
 
 /** One direct invocation descriptor, shaped like the generator's output. */
 function invocation(
@@ -46,11 +59,12 @@ function invocation(
   resultSchema: z.ZodType,
   resultSymbol: string,
   cancellation?: { parameter: 'signal' },
+  namespace = NAMESPACE,
 ): TypertContribution['invocations'][number] {
   return {
-    id: `dsh-devpanel#${NAMESPACE}/${method}`,
-    service: NAMESPACE,
-    namespace: NAMESPACE,
+    id: `dsh-devpanel#${namespace}/${method}`,
+    service: namespace,
+    namespace,
     method,
     invocation: { kind: 'direct' },
     parameters: parameters.map(parameter => ({
@@ -113,6 +127,22 @@ export const TYPERT: TypertContribution = {
       { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:cwd' },
       { name: 'offset', schema: z.number().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:offset' },
     ], tailResultSchema, 'dsh-devpanel#terminalPanel/tail:result', { parameter: 'signal' }),
+    // Usage panel (see src/usage.ts) — the AI + terminal dual-dimension stats.
+    invocation('snapshot', [
+      { name: 'query', schema: usageQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/snapshot:query' },
+    ], usageSnapshotSchema, 'dsh-devpanel#usagePanel/snapshot:result', undefined, USAGE_NAMESPACE),
+    invocation('calls', [
+      { name: 'query', schema: usageCallsQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/calls:query' },
+    ], usageCallsPageSchema, 'dsh-devpanel#usagePanel/calls:result', undefined, USAGE_NAMESPACE),
+    invocation('terminals', [
+      { name: 'query', schema: usageTerminalsQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/terminals:query' },
+    ], usageTerminalsPageSchema, 'dsh-devpanel#usagePanel/terminals:result', undefined, USAGE_NAMESPACE),
+    invocation('exportCsv', [
+      { name: 'query', schema: usageQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/exportCsv:query' },
+    ], usageExportResultSchema, 'dsh-devpanel#usagePanel/exportCsv:result', undefined, USAGE_NAMESPACE),
+    invocation('exportJson', [
+      { name: 'query', schema: usageQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/exportJson:query' },
+    ], usageExportJsonResultSchema, 'dsh-devpanel#usagePanel/exportJson:result', undefined, USAGE_NAMESPACE),
   ],
   model: {
     services: [],
