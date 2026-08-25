@@ -1,7 +1,7 @@
 {
   "name": "dsh-devpanel",
   "description": "DeepSeek Harness 开发者工具箱插件:侧边栏入口 + 底部终端面板,可开始/终止进程、手工输入命令,并浏览 AI 输出结果。",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "keywords": [
     "deepseek",
     "deepseek-harness",
