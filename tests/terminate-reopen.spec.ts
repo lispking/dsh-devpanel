@@ -106,6 +106,7 @@ describe('TerminateDialog tab lifecycle', () => {
       dispose: vi.fn(async () => ({ ok: true })),
       readFile: vi.fn(async () => ({ ok: true, value: { path: '/x', content: '', kind: 'text' } })),
       listDir: vi.fn(async () => ({ ok: true, value: { path: '/x', entries: [] } })),
+      tail: vi.fn(async () => ({ ok: true, value: { path: '/x', delta: '', offset: 0, gone: false } })),
     }
     const { container, root } = renderDialog(store, terminalPanel)
     try {
@@ -160,6 +161,7 @@ describe('TerminateDialog tab lifecycle', () => {
       dispose: vi.fn(async () => ({ ok: true })),
       readFile: vi.fn(async () => ({ ok: true, value: { path: '/x', content: '', kind: 'text' } })),
       listDir: vi.fn(async () => ({ ok: true, value: { path: '/x', entries: [] } })),
+      tail: vi.fn(async () => ({ ok: true, value: { path: '/x', delta: '', offset: 0, gone: false } })),
     }
     const { container, root } = renderDialog(store, terminalPanel)
     try {

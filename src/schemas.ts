@@ -80,6 +80,14 @@ export const listDirResultSchema = z.object({
   entries: z.array(dirEntrySchema),
 })
 
+/** Incremental tail chunk: delta bytes, the next offset, and a gone flag. */
+export const tailResultSchema = z.object({
+  path: z.string(),
+  delta: z.string(),
+  offset: z.number(),
+  gone: z.boolean(),
+})
+
 /** Permitted terminal signals (mirrors SubprocessTerminalSignal). */
 export const signalSchema = z.union([
   z.literal('SIGINT'),

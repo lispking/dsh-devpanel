@@ -114,3 +114,15 @@ export interface ConsoleListDirResult {
   /** Entries sorted directories-first, then alphabetically. */
   entries: readonly ConsoleDirEntry[]
 }
+
+/** Incremental tail chunk for the browser log view (seek from an offset). */
+export interface ConsoleTailResult {
+  /** Resolved absolute path on the host. */
+  path: string
+  /** Bytes appended at/after the requested offset, decoded as UTF-8. */
+  delta: string
+  /** Next offset the caller should pass back on the following poll. */
+  offset: number
+  /** True when the target file no longer exists (deleted/rotated away). */
+  gone: boolean
+}

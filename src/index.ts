@@ -11,7 +11,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { readFile as readFileNode, readdir, stat } from 'node:fs/promises'
+import { open, readFile as readFileNode, readdir, stat } from 'node:fs/promises'
 import { extname, basename, resolve, relative } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -30,6 +30,7 @@ import type {
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
   ConsoleWriteResult,
+  ConsoleTailResult,
 } from './types.ts'
 
 /** Retained scrollback cap per session; overflow keeps the TAIL. */
@@ -346,6 +347,47 @@ export class TerminalPanelService extends TypertRemoteService {
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     })
     return { path: target, entries }
+  }
+
+  /**
+   * Read a file's incremental tail for the browser log view. The client keeps
+   * an opaque byte offset and passes it back, so each call returns only the
+   * bytes appended since — a tiny seek+read, safe to call on a tick while a
+   * process is actively appending. Same path resolution/traversal guard as
+   * readFile. A vanished file reports `gone` instead of throwing, letting the
+   * UI stop polling cleanly.
+   * @param path - absolute, `~`-prefixed, or `cwd`-relative file path.
+   * @param cwd - base directory for relative paths; defaults to the host cwd.
+   * @param offset - byte offset to resume from (0 replays the whole file).
+   * @returns the delta, the next offset, and whether the file is gone.
+   */
+  @Remote
+  async readTail(path: string, cwd?: string, offset = 0): Promise<ConsoleTailResult> {
+    const target = this.resolveTarget(path, cwd)
+    let handle
+    try {
+      handle = await open(target, 'r')
+    } catch {
+      // ENOENT/ENOTDIR → the file is gone (rotated/deleted); the UI stops.
+      return { path: target, delta: '', offset, gone: true }
+    }
+    try {
+      const statInfo = await handle.stat()
+      if (offset >= statInfo.size) {
+        // No new bytes: keep the caller's offset (or clamp a stale oversized
+        // offset so a truncated log read back in sync).
+        return { path: target, delta: '', offset: Math.min(offset, statInfo.size), gone: false }
+      }
+      const size = statInfo.size - offset
+      const buffer = Buffer.alloc(size)
+      await handle.read(buffer, 0, size, offset)
+      // The tail is streamed as UTF-8; an incomplete multi-byte char at the
+      // chunk boundary decodes to U+FFFD but the offset never moves backward,
+      // so the next poll resyncs.
+      return { path: target, delta: buffer.toString('utf8'), offset: statInfo.size, gone: false }
+    } finally {
+      await handle.close()
+    }
   }
 
   private expect(id: string): SessionRecord {

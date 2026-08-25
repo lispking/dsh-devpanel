@@ -29,6 +29,7 @@ import {
   disposeResultSchema,
   readFileResultSchema,
   listDirResultSchema,
+  tailResultSchema,
   signalSchema,
 } from './schemas.ts'
 
@@ -107,6 +108,11 @@ export const TYPERT: TypertContribution = {
       { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/listDir:path' },
       { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/listDir:cwd' },
     ], listDirResultSchema, 'dsh-devpanel#terminalPanel/listDir:result', { parameter: 'signal' }),
+    invocation('tail', [
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:cwd' },
+      { name: 'offset', schema: z.number().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:offset' },
+    ], tailResultSchema, 'dsh-devpanel#terminalPanel/tail:result', { parameter: 'signal' }),
   ],
   model: {
     services: [],

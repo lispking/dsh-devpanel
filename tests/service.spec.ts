@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
 import { PassThrough } from 'node:stream'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -216,5 +216,38 @@ describe('TerminalPanelService', () => {
     const home = await service.listDir('~')
     expect(home.path).toBe(homedir())
     await expect(service.listDir('no-such-dir', '/tmp')).rejects.toThrow(/no-such-dir/)
+  })
+
+  it('tails a file incrementally from a byte offset and reports a gone file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-devpanel-'))
+    try {
+      writeFileSync(join(dir, 'app.log'), 'line one\n')
+      const { service } = await mountService()
+
+      // First read replays the whole file and returns the next offset.
+      const first = await service.readTail('app.log', dir, 0)
+      expect(first.delta).toBe('line one\n')
+      expect(first.offset).toBe(9)
+      expect(first.gone).toBe(false)
+
+      // Appending more bytes yields only the delta after the previous offset.
+      appendFileSync(join(dir, 'app.log'), 'line two\n')
+      const second = await service.readTail('app.log', dir, first.offset)
+      expect(second.delta).toBe('line two\n')
+      expect(second.offset).toBe(18)
+      expect(second.gone).toBe(false)
+
+      // No new bytes → empty delta with a stable offset.
+      const idle = await service.readTail('app.log', dir, second.offset)
+      expect(idle.delta).toBe('')
+      expect(idle.offset).toBe(18)
+
+      // A vanished file reports gone instead of throwing, so the UI stops.
+      rmSync(join(dir, 'app.log'))
+      const gone = await service.readTail('app.log', dir, second.offset)
+      expect(gone.gone).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

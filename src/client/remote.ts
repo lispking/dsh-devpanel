@@ -24,6 +24,7 @@ import type {
   ConsoleSignalResult,
   ConsoleSpawnRequest,
   ConsoleSpawnResult,
+  ConsoleTailResult,
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
   ConsoleWriteResult,
@@ -39,6 +40,7 @@ import {
   disposeResultSchema,
   readFileResultSchema,
   listDirResultSchema,
+  tailResultSchema,
   signalSchema,
 } from '../schemas.ts'
 
@@ -115,6 +117,11 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
       { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/listDir:path' },
       { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/listDir:cwd' },
     ], listDirResultSchema, 'dsh-devpanel#terminalPanel/listDir:result', { parameter: 'signal' }),
+    descriptor('tail', [
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:cwd' },
+      { name: 'offset', schema: z.number().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:offset' },
+    ], tailResultSchema, 'dsh-devpanel#terminalPanel/tail:result', { parameter: 'signal' }),
   ],
 }
 
@@ -131,6 +138,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     dispose: (id: string, signal?: AbortSignal) => Promise<RemoteResult<{ ok: true }>>
     readFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
     listDir: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
+    tail: (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
   }
   interface TypertRemoteMap {
     'terminalPanel/spawn': (request: ConsoleSpawnRequest, signal?: AbortSignal) => Promise<RemoteResult<ConsoleSpawnResult>>
@@ -142,6 +150,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'terminalPanel/dispose': (id: string, signal?: AbortSignal) => Promise<RemoteResult<{ ok: true }>>
     'terminalPanel/readFile': (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
     'terminalPanel/listDir': (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
+    'terminalPanel/tail': (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
   }
   interface TypertRemoteNamespaceMap {
     'terminalPanel': TypertRemoteNamespace$7465726d696e616c50616e656c
@@ -161,4 +170,5 @@ export type {
   ConsoleWriteResult,
   ConsoleListDirResult,
   ConsoleDirEntry,
+  ConsoleTailResult,
 } from '../types.ts'

@@ -33,6 +33,7 @@ import type {
   ConsoleSignalResult,
   ConsoleSpawnRequest,
   ConsoleSpawnResult,
+  ConsoleTailResult,
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
   ConsoleWriteResult,
@@ -51,6 +52,7 @@ export interface TerminalPanelFace {
   dispose: (id: string, signal?: AbortSignal) => Promise<RemoteResult<{ ok: true }>>
   readFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
   listDir: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
+  tail: (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
 }
 
 /** Injected business face of the Terminate dialog. */
