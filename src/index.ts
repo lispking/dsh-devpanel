@@ -125,9 +125,11 @@ export class TerminalPanelService extends TypertRemoteService {
     const argv = request.argv.length > 0
       ? [...request.argv]
       : [defaultShell, '-c', 'export TERM=xterm-256color; exec "${SHELL:-/bin/sh}"']
-    // A fresh-session default ('' or '~') lands in the user home; an explicit
-    // path is used verbatim.
-    const cwd = request.cwd === '' || request.cwd === '~' ? homedir() : request.cwd
+    // An empty cwd (unspecified) falls back to the host process cwd — the
+    // project directory `dsh web` was launched from, matching the readFile/
+    // listDir resolveTarget base. '~' stays an explicit home-directory
+    // request; any other path is used verbatim.
+    const cwd = request.cwd === '' ? process.cwd() : request.cwd === '~' ? homedir() : request.cwd
     const handle = await this.ctx.subprocess.spawnTerminal({
       argv,
       cwd,

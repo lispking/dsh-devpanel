@@ -502,7 +502,10 @@ function TerminateView({
     const request: ConsoleSpawnRequest = {
       // Empty argv: the host resolves the system login shell ($SHELL).
       argv: [],
-      cwd: restored?.cwd ?? (cwdRef.current === undefined || cwdRef.current === '' ? '~' : cwdRef.current),
+      // Empty cwd when the session has no project directory: the host falls
+      // back to its own process cwd (the directory `dsh web` was launched
+      // from), so a freshly opened panel lands in the project, not $HOME.
+      cwd: restored?.cwd ?? cwdRef.current ?? '',
       // Guard degenerate fit results (a 0/negative row count would break the PTY).
       rows: terminal.rows > 0 ? terminal.rows : 24,
       cols: terminal.cols > 0 ? terminal.cols : 80,

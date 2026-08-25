@@ -60,11 +60,19 @@ describe('TerminalPanelService', () => {
     expect(listed.sessions[0]?.status).toEqual({ kind: 'running' })
   })
 
-  it('defaults argv to the system login shell and cwd to the user home for empty or ~', async () => {
+  it('defaults argv to the system login shell and cwd to the host cwd for an empty cwd', async () => {
     const { service, spawnTerminal } = await mountService()
     await service.spawn({ argv: [], cwd: '', rows: 10, cols: 40 })
     expect(spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({
       argv: [process.env.SHELL ?? '/bin/sh', '-c', 'export TERM=xterm-256color; exec "${SHELL:-/bin/sh}"'],
+      cwd: process.cwd(),
+    }))
+  })
+
+  it('keeps an explicit ~ as the user home directory', async () => {
+    const { service, spawnTerminal } = await mountService()
+    await service.spawn({ argv: [], cwd: '~', rows: 10, cols: 40 })
+    expect(spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({
       cwd: homedir(),
     }))
   })
