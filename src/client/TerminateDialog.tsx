@@ -740,9 +740,20 @@ function TerminateView({
   // sees events originating inside the dialog. A window listener bridges the
   // gap — but only while open, and only for events whose target is NOT inside
   // the dialog (the dialog-level handler owns those, so they don't double-fire).
+  // The listener runs in the CAPTURE phase so Esc wins over the xterm textarea
+  // (which stops propagation of keydowns it consumes): with the palette open,
+  // Esc closes it no matter where focus sits, even on the terminal inside the
+  // dialog. When the palette is closed, Esc is left alone so it still reaches
+  // the terminal (vim/less/readline all use it).
   useEffect(() => {
     if (!open) return
     const onWindowKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && paletteOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closePalette()
+        return
+      }
       const target = event.target
       if (target instanceof Element && target.closest('.dsh-devpanel-dialog')) return
       if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey === true) return
@@ -757,8 +768,8 @@ function TerminateView({
         window.requestAnimationFrame(() => searchInputRef.current?.focus())
       }
     }
-    window.addEventListener('keydown', onWindowKeyDown)
-    return () => { window.removeEventListener('keydown', onWindowKeyDown) }
+    window.addEventListener('keydown', onWindowKeyDown, true)
+    return () => { window.removeEventListener('keydown', onWindowKeyDown, true) }
   }, [open, paletteOpen])
 
   // Re-fit the active tab's viewport when its mount changes size (the dock
@@ -1176,9 +1187,11 @@ function TerminateView({
                     event.preventDefault()
                     addSnippet()
                   } else if (event.key === 'Escape') {
-                    setAddingSnippet(false)
-                    setNewSnippetName('')
-                    setNewSnippetCommand('')
+                    // Esc always closes the palette, even from the add form:
+                    // exiting the form but leaving the overlay open leaves the
+                    // next Esc with no focused handler (a real "no response").
+                    event.preventDefault()
+                    closePalette()
                   }
                 }}
               />
@@ -1196,9 +1209,11 @@ function TerminateView({
                     event.preventDefault()
                     addSnippet()
                   } else if (event.key === 'Escape') {
-                    setAddingSnippet(false)
-                    setNewSnippetName('')
-                    setNewSnippetCommand('')
+                    // Esc always closes the palette, even from the add form:
+                    // exiting the form but leaving the overlay open leaves the
+                    // next Esc with no focused handler (a real "no response").
+                    event.preventDefault()
+                    closePalette()
                   }
                 }}
               />
