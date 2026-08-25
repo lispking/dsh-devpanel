@@ -797,6 +797,23 @@ function TerminateView({
     setSearchOpen(false)
     setSearchTerm('')
     setSearchResults({ index: 0, count: 0 })
+    // The rename input is transient UI: clear it too, so a stale id/draft
+    // cannot resurface when the panel reopens.
+    setRenamingId(null)
+    setRenameDraft('')
+    // An explicit close by the owning session discards the saved layout too
+    // (registry entry + persisted descriptors) — even when the tabs were
+    // already cleared, because closePanel() empties them before this effect
+    // runs and the early return below would otherwise skip the cleanup,
+    // letting stale tabs resurrect on the next open.
+    if (sessionId !== undefined && sessionId === lastOpenSessionRef.current) {
+      sessionPanels.delete(sessionId)
+      try {
+        window.localStorage.removeItem(tabsStorageKey(sessionId))
+      } catch {
+        // Storage unavailable: nothing to clear.
+      }
+    }
     if (live.length === 0) return
     // A session switch lands here too (the NEW session's dialog is closed),
     // but that is not an explicit close: keep the previous session's PTYs
@@ -810,14 +827,6 @@ function TerminateView({
     tabsRef.current = []
     setTabs([])
     setActiveId(null)
-    // Explicit close discards the session's saved layout too: the next open
-    // spawns a fresh default tab instead of reviving stale ones.
-    if (sessionId !== undefined) sessionPanels.delete(sessionId)
-    try {
-      window.localStorage.removeItem(tabsStorageKey(sessionId))
-    } catch {
-      // Storage unavailable: nothing to clear.
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dispose is stable for the dialog lifetime.
   }, [open, sessionId, terminalPanel])
 
