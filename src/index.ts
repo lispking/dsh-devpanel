@@ -39,17 +39,57 @@ const MAX_SCROLLBACK_BYTES = 1_000_000
 /** Overall teardown budget at plugin unload; a stuck PTY must not hang the host. */
 const DISPOSE_BUDGET_MS = 5_000
 
-/** Extension → MIME for image files the browser viewer renders natively. */
-const IMAGE_MIME: Readonly<Record<string, string>> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.svg': 'image/svg+xml',
-  '.bmp': 'image/bmp',
-  '.ico': 'image/x-icon',
+/**
+ * Extension → { mime, kind } for files the browser viewer renders natively via
+ * a base64 data URL: images, PDF, audio and video. The `kind` mirrors the
+ * result classification so the client picks the right renderer.
+ */
+const EMBED_MIME: Readonly<Record<string, { mime: string; kind: 'image' | 'pdf' | 'audio' | 'video' }>> = {
+  // Images
+  '.png': { mime: 'image/png', kind: 'image' },
+  '.jpg': { mime: 'image/jpeg', kind: 'image' },
+  '.jpeg': { mime: 'image/jpeg', kind: 'image' },
+  '.gif': { mime: 'image/gif', kind: 'image' },
+  '.webp': { mime: 'image/webp', kind: 'image' },
+  '.avif': { mime: 'image/avif', kind: 'image' },
+  '.svg': { mime: 'image/svg+xml', kind: 'image' },
+  '.bmp': { mime: 'image/bmp', kind: 'image' },
+  '.ico': { mime: 'image/x-icon', kind: 'image' },
+  '.tif': { mime: 'image/tiff', kind: 'image' },
+  '.tiff': { mime: 'image/tiff', kind: 'image' },
+  '.heic': { mime: 'image/heic', kind: 'image' },
+  '.heif': { mime: 'image/heif', kind: 'image' },
+  '.jfif': { mime: 'image/jpeg', kind: 'image' },
+  '.apng': { mime: 'image/apng', kind: 'image' },
+  // PDF
+  '.pdf': { mime: 'application/pdf', kind: 'pdf' },
+  // Audio
+  '.mp3': { mime: 'audio/mpeg', kind: 'audio' },
+  '.wav': { mime: 'audio/wav', kind: 'audio' },
+  '.ogg': { mime: 'audio/ogg', kind: 'audio' },
+  '.opus': { mime: 'audio/ogg', kind: 'audio' },
+  '.m4a': { mime: 'audio/mp4', kind: 'audio' },
+  '.aac': { mime: 'audio/aac', kind: 'audio' },
+  '.flac': { mime: 'audio/flac', kind: 'audio' },
+  '.weba': { mime: 'audio/webm', kind: 'audio' },
+  // Video
+  '.mp4': { mime: 'video/mp4', kind: 'video' },
+  '.m4v': { mime: 'video/mp4', kind: 'video' },
+  '.webm': { mime: 'video/webm', kind: 'video' },
+  '.mov': { mime: 'video/quicktime', kind: 'video' },
+  '.ogv': { mime: 'video/ogg', kind: 'video' },
+  '.avi': { mime: 'video/x-msvideo', kind: 'video' },
+  '.mkv': { mime: 'video/x-matroska', kind: 'video' },
+}
+
+/**
+ * Best-effort binary sniff: a NUL byte within the file head means the bytes are
+ * not printable text (UTF-8 never contains 0x00), so the viewer shows a binary
+ * notice instead of decoding garbage. Cheap and reliable for the files an AI
+ * session produces.
+ */
+function isBinary(buffer: Buffer): boolean {
+  return buffer.subarray(0, Math.min(buffer.length, 8_192)).includes(0)
 }
 
 /** One live session record owned by this service. */
@@ -307,8 +347,9 @@ export class TerminalPanelService extends TypertRemoteService {
    * @param path - absolute path, `~`-prefixed home path, or path relative to `cwd`.
    * @param cwd - base directory for relative paths (the session's project
    *   directory); defaults to the host process cwd.
-   * @returns the resolved path, a text/image classification, and the content
-   *   (UTF-8 for text, a base64 data URL for images).
+   * @returns the resolved path, a classification, and the content: UTF-8 for
+   *   text, a base64 data URL for image/pdf/audio/video, or just the byte size
+   *   for unrecognized binary files.
    */
   @Remote
   async readFile(path: string, cwd?: string): Promise<ConsoleReadFileResult> {
@@ -318,13 +359,18 @@ export class TerminalPanelService extends TypertRemoteService {
       throw new Error(`terminalPanel: not a file ${JSON.stringify(path)} (resolved ${JSON.stringify(target)})`)
     }
     const ext = extname(target).toLowerCase()
-    const mime = IMAGE_MIME[ext]
-    if (mime !== undefined) {
+    const embed = EMBED_MIME[ext]
+    if (embed !== undefined) {
       const buffer = await readFileNode(target)
-      return { path: target, content: '', kind: 'image', dataUrl: `data:${mime};base64,${buffer.toString('base64')}` }
+      return { path: target, content: '', kind: embed.kind, dataUrl: `data:${embed.mime};base64,${buffer.toString('base64')}` }
     }
-    const content = await readFileNode(target, 'utf8')
-    return { path: target, content, kind: 'text' }
+    const buffer = await readFileNode(target)
+    if (isBinary(buffer)) {
+      // Unknown extension with binary content: never decode garbage into the
+      // viewer — hand back the size so the UI can explain the file.
+      return { path: target, content: '', kind: 'binary', size: buffer.length }
+    }
+    return { path: target, content: buffer.toString('utf8'), kind: 'text' }
   }
 
   /**
