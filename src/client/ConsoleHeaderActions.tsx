@@ -14,6 +14,7 @@ import { IconPanelLeftOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 // (declared by ui-conversation) into this program so PropsRuntime resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConsolePanelState } from './console-store.ts'
+import { dialogOpenFor, sidebarOpenFor } from './console-store.ts'
 import { NS } from './locales.ts'
 
 /**
@@ -54,29 +55,31 @@ export type ConsoleHeaderActionsProps =
  * @param props - standard header kit, locale seat, injected store + column toggles.
  * @returns the file-sidebar and terminal toggles reflecting the shared store.
  */
-export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, t }: ConsoleHeaderActionsProps) {
+export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, sessionId, t }: ConsoleHeaderActionsProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const dialogOpen = dialogOpenFor(state, sessionId)
+  const sidebarOpen = sidebarOpenFor(state, sessionId)
   return (
     <div className="dsh-devpanel-header-actions">
       <button
         type="button"
         className="dsh-devpanel-header-icon"
-        aria-pressed={state.dialogOpen}
+        aria-pressed={dialogOpen}
         aria-label={t('header.terminate.aria')}
         title={t('header.terminate.aria')}
-        onClick={() => { store.update(draft => { draft.dialogOpen = !draft.dialogOpen }) }}
+        onClick={() => { store.update(draft => { draft.dialogOpen[sessionId] = !dialogOpen }) }}
       >
         <IconTerminal16 />
       </button>
       <button
         type="button"
         className="dsh-devpanel-header-icon"
-        aria-pressed={state.sidebarOpen}
+        aria-pressed={sidebarOpen}
         aria-label={t('header.sidebar.aria')}
         title={t('header.sidebar.aria')}
         onClick={() => {
-          const opening = !state.sidebarOpen
-          store.update(draft => { draft.sidebarOpen = opening })
+          const opening = !sidebarOpen
+          store.update(draft => { draft.sidebarOpen[sessionId] = opening })
           if (opening) openSidebar()
           else closeSidebar()
         }}

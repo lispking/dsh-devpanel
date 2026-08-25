@@ -39,6 +39,7 @@ import type {
   ConsoleWriteResult,
 } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
+import { dialogOpenFor } from './console-store.ts'
 import { NS } from './locales.ts'
 
 /** Browser-visible face of the terminalPanel Remote namespace. */
@@ -154,16 +155,23 @@ const HEIGHT_STORAGE_KEY = 'dsh-devpanel.terminalHeight'
 /** localStorage key for the persisted tab list (restore after refresh). */
 const TABS_STORAGE_KEY = 'dsh-devpanel.savedTabs'
 
+/** localStorage key for ONE chat session's persisted tab list: the tab
+ *  descriptors are per session, so a fresh session never respawns another
+ *  session's terminals after a refresh. */
+function tabsStorageKey(sessionId: string | undefined): string {
+  return sessionId === undefined ? TABS_STORAGE_KEY : `${TABS_STORAGE_KEY}.${sessionId}`
+}
+
 /** One persisted tab descriptor: the spawn cwd + the tab label. */
 interface SavedTabDescriptor {
   cwd: string
   name: string
 }
 
-/** Load the saved tab list; malformed or absent entries return empty. */
-function loadSavedTabs(): SavedTabDescriptor[] {
+/** Load a session's saved tab list; malformed or absent entries return empty. */
+function loadSavedTabs(sessionId: string | undefined): SavedTabDescriptor[] {
   try {
-    const raw = window.localStorage.getItem(TABS_STORAGE_KEY)
+    const raw = window.localStorage.getItem(tabsStorageKey(sessionId))
     if (raw === null) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -174,6 +182,23 @@ function loadSavedTabs(): SavedTabDescriptor[] {
   } catch {
     return []
   }
+}
+
+/**
+ * Copy a prior xterm's buffer text into a fresh one. Restoring a session's
+ * panel REBUILDS its terminals (a detached xterm element shows the old
+ * content but cannot accept input), and replaying the old lines keeps the
+ * scrollback visible. Best-effort plain-text replay; ANSI styling is not
+ * preserved.
+ */
+function replayBuffer(from: Terminal, into: Terminal): void {
+  const buffer = from.buffer.active
+  const lines: string[] = []
+  for (let i = 0; i < buffer.length; i++) {
+    const line = buffer.getLine(i)?.translateToString(true)
+    if (line !== undefined) lines.push(line)
+  }
+  if (lines.length > 0) into.write(lines.join('\r\n'))
 }
 
 /** localStorage key for user-defined command snippets (the Cmd/Ctrl+K palette). */
@@ -316,6 +341,15 @@ interface TerminalSessionUi {
   notify: boolean
 }
 
+/**
+ * Per-chat-session terminal panel layouts, kept across remounts. Strict
+ * session-scope slots REMOUNT per session (key=sessionId), so component
+ * state dies with the instance — the last layout of each session survives
+ * here (xterm instances and scrollback included) and re-attaches to fresh
+ * mount divs when that session's panel opens again.
+ */
+const sessionPanels = new Map<string, { tabs: TerminalSessionUi[]; activeId: string | null }>()
+
 /** Compute the next tab label: default, default 2, default 3, … */
 function nextTabName(sessions: readonly TerminalSessionUi[]): string {
   let max = 0
@@ -340,7 +374,8 @@ export function TerminateDialog({ store, terminalPanel, sessions, sessionId, use
     : snapshot.byId[sessionId]?.cwd)
   return (
     <TerminateView
-      open={state.dialogOpen}
+      open={dialogOpenFor(state, sessionId)}
+      sessionId={sessionId}
       cwd={currentCwd}
       store={store}
       terminalPanel={terminalPanel}
@@ -353,12 +388,14 @@ export function TerminateDialog({ store, terminalPanel, sessions, sessionId, use
 /** Multi-tab terminal body: tab bar + one mount div per session. */
 function TerminateView({
   open,
+  sessionId,
   cwd,
   store,
   terminalPanel,
   t,
 }: {
   open: boolean
+  sessionId: string | undefined
   cwd: string | undefined
   store: SnapshotStore<ConsolePanelState>
   terminalPanel: TerminalPanelFace
@@ -404,6 +441,11 @@ function TerminateView({
   // panel closed must not repopulate a hidden dialog).
   const openRef = useRef(open)
   openRef.current = open
+  // The chat session whose dialog was last open. Lets the close effect tell
+  // an EXPLICIT close (dispose the PTYs) from a session switch (open just
+  // went false for the NEW session — keep the previous session's terminals
+  // alive so switching back restores them instead of spawning a fresh tab).
+  const lastOpenSessionRef = useRef<string | undefined>(undefined)
   // Terminal band height: persisted across reloads; the handle drags it live
   // and commits on pointer-up. A ref mirrors the state for the move handler.
   const [terminalHeight, setTerminalHeight] = useState(loadTerminalHeight)
@@ -417,14 +459,25 @@ function TerminateView({
   const spawnIdRef = useRef(0)
   // Mount div per session id, filled by callback refs below.
   const mountsRef = useRef(new Map<string, HTMLDivElement>())
+  // The tab strip (horizontal scroll container), to bring the active tab
+  // into view when a new one spawns or the selection changes.
+  const tabbarRef = useRef<HTMLDivElement | null>(null)
 
-  // Open one xterm into its session's mount div, or re-fit when shown.
+  // Open one xterm into its session's mount div, or re-attach/re-fit when
+  // shown again. A previously opened xterm (restored from a session switch)
+  // must NOT be open()ed twice — xterm rejects a second open — so its
+  // element (scrollback intact) is moved into the fresh mount instead.
   const openTerminal = (session: TerminalSessionUi): void => {
     const mount = mountsRef.current.get(session.view.id)
     if (mount === undefined) return
     if (!session.opened) {
       session.terminal.open(mount)
       session.opened = true
+    } else {
+      const element = session.terminal.element
+      if (element !== undefined && element.parentElement !== mount) {
+        mount.appendChild(element)
+      }
     }
     try {
       session.fit.fit()
@@ -510,6 +563,9 @@ function TerminateView({
       rows: terminal.rows > 0 ? terminal.rows : 24,
       cols: terminal.cols > 0 ? terminal.cols : 80,
       name: restored?.name ?? nextTabName(tabsRef.current),
+      // Tag the PTY with its owning chat session so restore() adopts back
+      // exactly this session's terminals (and no other session's).
+      ...(sessionId === undefined ? {} : { owner: sessionId }),
     }
     const mySpawn = ++spawnIdRef.current
     void terminalPanel.spawn(request).then((result) => {
@@ -563,9 +619,17 @@ function TerminateView({
   // instances. The host keeps each PTY's process and delta cursor, so the new
   // terminals pick up output from here on; spawned descriptors are unknown for
   // adopted sessions (spawnCwd stays undefined).
-  const adopt = (views: readonly ConsoleSessionView[]): void => {
+  const adopt = (views: readonly ConsoleSessionView[], preferredActiveId?: string | null): void => {
+    const priorTabs = sessionId === undefined ? undefined : sessionPanels.get(sessionId)?.tabs
     const adopted: TerminalSessionUi[] = views.map(view => {
       const { terminal, fit, search } = createTerminal()
+      // Rebuild the scrollback the session left behind: a detached xterm
+      // element would show the old content but cannot accept input, so the
+      // restored terminal is a fresh xterm with the prior buffer replayed.
+      const prior = priorTabs?.find(tab => tab.view.id === view.id)
+      if (prior !== undefined) {
+        replayBuffer(prior.terminal, terminal)
+      }
       return {
         view: { ...view },
         terminal,
@@ -579,7 +643,11 @@ function TerminateView({
     })
     tabsRef.current = adopted
     setTabs(adopted)
-    setActiveId(adopted[0]?.view.id ?? null)
+    // Restore the session's active tab when it is still among the live set.
+    setActiveId(preferredActiveId !== null && preferredActiveId !== undefined
+      && views.some(view => view.id === preferredActiveId)
+      ? preferredActiveId
+      : adopted[0]?.view.id ?? null)
     // Open into their mounts once the divs are rendered (next frame).
     window.requestAnimationFrame(() => {
       for (const session of adopted) openTerminal(session)
@@ -589,9 +657,18 @@ function TerminateView({
   // Publish the active session id into the shared store so the sidebar can
   // write into the same PTY ("open in terminal"). Closing the dialog (open
   // false) clears activeId through the close effect, which lands here too.
+  // Keyed per chat session: each session's sidebar talks to its own dialog.
   useEffect(() => {
-    store.update(draft => { draft.activeTerminalId = activeId })
-  }, [store, activeId])
+    if (sessionId !== undefined) store.update(draft => { draft.activeTerminalId[sessionId] = activeId })
+  }, [store, sessionId, activeId])
+
+  // Keep this session's latest layout in the module registry so a later
+  // remount (session switch) restores it: the xterm instances survive here
+  // with their scrollback and re-attach to fresh mount divs on restore.
+  useEffect(() => {
+    if (sessionId === undefined || tabs.length === 0) return
+    sessionPanels.set(sessionId, { tabs: tabsRef.current, activeId })
+  }, [sessionId, tabs, activeId])
 
   // Open the dialog: restore the previous session layout. Live host sessions
   // (surviving a page refresh) are ADOPTED into fresh xterm instances; a host
@@ -599,16 +676,20 @@ function TerminateView({
   // with neither, a fresh default tab spawns.
   const restore = (): void => {
     const myOpen = openRef.current
+    const saved = sessionId === undefined ? undefined : sessionPanels.get(sessionId)
     void terminalPanel.list().then((listed) => {
       if (!openRef.current || myOpen !== openRef.current) return
-      const live = listed.ok ? listed.value.sessions : []
+      // Adopt only THIS session's own live PTYs: another session's terminals
+      // must not leak into a fresh panel — a new session gets a fresh tab.
+      const live = (listed.ok ? listed.value.sessions : [])
+        .filter(view => sessionId === undefined || view.owner === sessionId)
       if (live.length > 0) {
-        adopt(live)
+        adopt(live, saved?.activeId ?? null)
         return
       }
-      const saved = loadSavedTabs()
-      if (saved.length > 0) {
-        for (const tab of saved) spawn(tab)
+      const descriptors = loadSavedTabs(sessionId)
+      if (descriptors.length > 0) {
+        for (const tab of descriptors) spawn(tab)
         return
       }
       spawn()
@@ -616,9 +697,30 @@ function TerminateView({
   }
   useEffect(() => {
     if (!open) return
-    if (tabsRef.current.length === 0) restore()
+    if (tabsRef.current.length === 0) {
+      // Rebuild this session's panel from its own live PTYs: restore() adopts
+      // them into FRESH xterms (with the prior scrollback replayed), because
+      // re-attaching a detached xterm element shows the old content but
+      // leaves the terminal unable to accept input.
+      restore()
+    } else {
+      // Tabs already mounted (open in both sessions): just re-fit them.
+      window.requestAnimationFrame(() => {
+        for (const session of tabsRef.current) openTerminal(session)
+      })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore is stable for the dialog lifetime.
   }, [open, terminalPanel])
+
+  // Keep the active tab in view: a newly spawned tab (or one selected from
+  // the overflow strip) must not sit scrolled out of the tab bar. Optional
+  // call: scrollIntoView is absent in jsdom and some embedded webviews, so
+  // this is a progressive enhancement that no-ops where unsupported.
+  useEffect(() => {
+    if (!open || activeId === null) return
+    const activeTab = tabbarRef.current?.querySelector<HTMLElement>('.dsh-devpanel-tab[data-active]')
+    activeTab?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [open, activeId])
 
   // Closing the panel (header toggle, not a per-tab close) must end every
   // session: dispose the PTYs, reset the tabs so the next open spawns a
@@ -626,26 +728,38 @@ function TerminateView({
   // tab list (closing = explicit discard; a page refresh does NOT run this
   // effect, so the saved list survives reloads for the restore path).
   useEffect(() => {
-    if (open) return
+    if (open) {
+      lastOpenSessionRef.current = sessionId
+      return
+    }
     const live = tabsRef.current
     for (const session of live) session.search.clearDecorations()
     setSearchOpen(false)
     setSearchTerm('')
     setSearchResults({ index: 0, count: 0 })
     if (live.length === 0) return
+    // A session switch lands here too (the NEW session's dialog is closed),
+    // but that is not an explicit close: keep the previous session's PTYs
+    // and tab layout alive so switching back restores them instead of
+    // spawning a fresh default tab. Only a close by the owning session
+    // (the one whose dialog was last open) disposes everything.
+    if (sessionId !== lastOpenSessionRef.current) return
     for (const session of live) {
       void terminalPanel.dispose(session.view.id)
     }
     tabsRef.current = []
     setTabs([])
     setActiveId(null)
+    // Explicit close discards the session's saved layout too: the next open
+    // spawns a fresh default tab instead of reviving stale ones.
+    if (sessionId !== undefined) sessionPanels.delete(sessionId)
     try {
-      window.localStorage.removeItem(TABS_STORAGE_KEY)
+      window.localStorage.removeItem(tabsStorageKey(sessionId))
     } catch {
       // Storage unavailable: nothing to clear.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dispose is stable for the dialog lifetime.
-  }, [open, terminalPanel])
+  }, [open, sessionId, terminalPanel])
 
   // Persist the current tab layout (spawn cwd + label) whenever it changes, so
   // a page refresh can restore it. Never clears on an empty list — an empty
@@ -658,11 +772,11 @@ function TerminateView({
       name: session.view.name ?? session.view.shell ?? 'terminal',
     }))
     try {
-      window.localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(descriptors))
+      window.localStorage.setItem(tabsStorageKey(sessionId), JSON.stringify(descriptors))
     } catch {
       // Storage unavailable (private mode): restore falls back to a fresh tab.
     }
-  }, [tabs])
+  }, [tabs, sessionId])
 
   // Poll EVERY tab's output deltas into its own xterm while it runs.
   useEffect(() => {
@@ -798,7 +912,10 @@ function TerminateView({
     setTabs(remaining)
     if (remaining.length === 0) {
       setActiveId(null)
-      store.update(draft => { draft.dialogOpen = false })
+      // The layout died with the last tab: drop the saved entry so a reopen
+      // spawns a fresh default tab instead of reviving it.
+      if (sessionId !== undefined) sessionPanels.delete(sessionId)
+      if (sessionId !== undefined) store.update(draft => { draft.dialogOpen[sessionId] = false })
       return
     }
     if (activeId === id) {
@@ -816,7 +933,7 @@ function TerminateView({
     setTabs([])
     setActiveId(null)
     setRenamingId(null)
-    store.update(draft => { draft.dialogOpen = false })
+    if (sessionId !== undefined) store.update(draft => { draft.dialogOpen[sessionId] = false })
   }
 
   // Start inline renaming: snapshot the current label as the draft and focus
@@ -981,7 +1098,7 @@ function TerminateView({
   if (!open) return null
   return (
     <div className="dsh-devpanel-dialog" role="dialog" aria-label={t('dialog.title')} onKeyDown={onDialogKeyDown}>
-      <div className="dsh-devpanel-tabs">
+      <div className="dsh-devpanel-tabs" ref={tabbarRef}>
         <span className="dsh-devpanel-title">{t('dialog.title')}</span>
         {active?.view.shell !== undefined && (
           <span className="dsh-devpanel-shell-badge">{active.view.shell}</span>

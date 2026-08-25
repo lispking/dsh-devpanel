@@ -39,10 +39,25 @@ class ResizeObserverStub {
 }
 vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
+// console-store.ts value-imports createSnapshotStore from the client runtime,
+// whose built bundles read window.__ModuleLoader__ at module scope — jsdom has
+// none (see apply.client.spec.ts). This suite never creates the real store
+// (makeStore is a plain stub), so mock the module with the read helpers the
+// dialog imports.
+vi.mock('../src/client/console-store.ts', () => ({
+  createConsoleStore: () => { throw new Error('not used in this suite') },
+  sidebarOpenFor: (state: { sidebarOpen: Record<string, boolean> }, sessionId: string | undefined) =>
+    sessionId === undefined ? false : state.sidebarOpen[sessionId] ?? false,
+  dialogOpenFor: (state: { dialogOpen: Record<string, boolean> }, sessionId: string | undefined) =>
+    sessionId === undefined ? false : state.dialogOpen[sessionId] ?? false,
+  activeTerminalFor: (state: { activeTerminalId: Record<string, string | null> }, sessionId: string | undefined) =>
+    sessionId === undefined ? null : state.activeTerminalId[sessionId] ?? null,
+}))
+
 /** A minimal writable snapshot store (zustand-like contract). */
 function makeStore() {
   const listeners = new Set<() => void>()
-  let state: ConsolePanelState = { sidebarOpen: false, dialogOpen: false }
+  let state: ConsolePanelState = { sidebarOpen: {}, dialogOpen: {}, activeTerminalId: {} }
   return {
     getSnapshot: () => state,
     subscribe: (fn: () => void) => {
@@ -62,7 +77,7 @@ function makeStore() {
 }
 
 /** Mount the Terminate dialog into jsdom with stubbed kit props. */
-function renderDialog(store: ReturnType<typeof makeStore>, terminalPanel: TerminalPanelFace) {
+function renderDialog(store: ReturnType<typeof makeStore>, terminalPanel: TerminalPanelFace, sessionId = 'test-session') {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root: Root = createRoot(container)
@@ -72,8 +87,8 @@ function renderDialog(store: ReturnType<typeof makeStore>, terminalPanel: Termin
       store: store as never,
       terminalPanel,
       sessions: {} as never,
-      sessionId: undefined,
-      useSessions: ((selector: (snapshot: never) => unknown) => selector({} as never)) as never,
+      sessionId,
+      useSessions: ((selector: (snapshot: never) => unknown) => selector({ byId: {} } as never)) as never,
       t: ((key: string) => key) as never,
     },
   ))
@@ -112,7 +127,7 @@ describe('TerminateDialog tab lifecycle', () => {
     try {
       // Open the dialog: the first default tab spawns and renders.
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen['test-session'] = true })
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
       await act(async () => {})
@@ -124,12 +139,12 @@ describe('TerminateDialog tab lifecycle', () => {
       await act(async () => {
         closeButton?.click()
       })
-      expect(store.getSnapshot().dialogOpen).toBe(false)
+      expect(store.getSnapshot().dialogOpen['test-session']).toBe(false)
       expect(container.querySelector('.dsh-devpanel-dialog')).toBeNull()
 
       // Reopen: a fresh default tab must spawn AND render again.
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen['test-session'] = true })
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
       await act(async () => {})
@@ -142,6 +157,9 @@ describe('TerminateDialog tab lifecycle', () => {
   it('re-spawns a default tab when reopened after the panel was closed via the header toggle', async () => {
     // The header icon only toggles dialogOpen; the dialog must still reset its
     // sessions so a fresh default tab appears on the next open.
+    // A distinct session id isolates this test from the layout the previous
+    // test saved under 'test-session' (module-level registry).
+    const sessionId = 'test-session-2'
     const store = makeStore()
     let nextId = 0
     const spawn = vi.fn(async () => {
@@ -163,10 +181,10 @@ describe('TerminateDialog tab lifecycle', () => {
       listDir: vi.fn(async () => ({ ok: true, value: { path: '/x', entries: [] } })),
       tail: vi.fn(async () => ({ ok: true, value: { path: '/x', delta: '', offset: 0, gone: false } })),
     }
-    const { container, root } = renderDialog(store, terminalPanel)
+    const { container, root } = renderDialog(store, terminalPanel, sessionId)
     try {
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen[sessionId] = true })
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
       await act(async () => {})
@@ -174,13 +192,13 @@ describe('TerminateDialog tab lifecycle', () => {
 
       // Close the panel the way the header button does: toggle dialogOpen only.
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = false })
+        store.update(draft => { draft.dialogOpen[sessionId] = false })
       })
       expect(container.querySelector('.dsh-devpanel-dialog')).toBeNull()
 
       // Reopen: a fresh default tab must spawn again.
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen[sessionId] = true })
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(2))
       await act(async () => {})

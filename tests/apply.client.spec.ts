@@ -9,7 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 // the built closure-factory bundles, which read window.__ModuleLoader__ at
 // module scope. Mock the store module with a minimal stub instead.
 vi.mock('../src/client/console-store.ts', () => {
-  const state = { sidebarOpen: false, dialogOpen: false }
+  const state = { sidebarOpen: {}, dialogOpen: {}, activeTerminalId: {} }
   return {
     createConsoleStore: () => ({
       getSnapshot: () => state,
@@ -17,6 +17,12 @@ vi.mock('../src/client/console-store.ts', () => {
       update: (mutator: (draft: typeof state) => void) => { mutator(state) },
       set: (next: typeof state) => { Object.assign(state, next) },
     }),
+    sidebarOpenFor: (_s: typeof state, sessionId: string | undefined) =>
+      sessionId === undefined ? false : state.sidebarOpen[sessionId] ?? false,
+    dialogOpenFor: (_s: typeof state, sessionId: string | undefined) =>
+      sessionId === undefined ? false : state.dialogOpen[sessionId] ?? false,
+    activeTerminalFor: (_s: typeof state, sessionId: string | undefined) =>
+      sessionId === undefined ? null : state.activeTerminalId[sessionId] ?? null,
   }
 })
 

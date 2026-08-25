@@ -47,14 +47,17 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-devpanel: dictionaries')
   installConsoleStyles(ctx)
 
-  // Global hotkey: Cmd/Ctrl+Shift+` toggles the terminal dialog, wherever
-  // focus is (composer, sidebar, terminal). Shift+Backquote reports key '~'.
+  // Global hotkey: Cmd/Ctrl+Shift+` toggles the terminal dialog of the
+  // CURRENT chat session, wherever focus is (composer, sidebar, terminal).
+  // Shift+Backquote reports key '~'.
   ctx.effect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return
       if (event.key !== '`' && event.key !== '~') return
       event.preventDefault()
-      store.update(draft => { draft.dialogOpen = !draft.dialogOpen })
+      const sessionId = ctx.sessions.list.getSnapshot().current
+      if (sessionId === undefined) return
+      store.update(draft => { draft.dialogOpen[sessionId] = !(draft.dialogOpen[sessionId] ?? false) })
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
@@ -95,6 +98,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     inject: () => ({
       store,
       terminalPanel,
+      // The harness layout closes the details column on every session switch;
+      // the sidebar re-opens it through this face when it renders open.
+      openDetails: () => { ctx.layout.openDetails() },
       closeDetails: () => { ctx.layout.closeDetails() },
     }),
   }, ConsoleSidebar))

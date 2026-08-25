@@ -46,9 +46,24 @@ vi.stubGlobal('localStorage', {
   clear: () => { storage.clear() },
 })
 
+// console-store.ts value-imports createSnapshotStore from the client runtime,
+// whose built bundles read window.__ModuleLoader__ at module scope — jsdom has
+// none (see apply.client.spec.ts). This suite never creates the real store
+// (makeStore is a plain stub), so mock the module with the read helpers the
+// dialog imports.
+vi.mock('../src/client/console-store.ts', () => ({
+  createConsoleStore: () => { throw new Error('not used in this suite') },
+  sidebarOpenFor: (state: { sidebarOpen: Record<string, boolean> }, sessionId: string | undefined) =>
+    sessionId === undefined ? false : state.sidebarOpen[sessionId] ?? false,
+  dialogOpenFor: (state: { dialogOpen: Record<string, boolean> }, sessionId: string | undefined) =>
+    sessionId === undefined ? false : state.dialogOpen[sessionId] ?? false,
+  activeTerminalFor: (state: { activeTerminalId: Record<string, string | null> }, sessionId: string | undefined) =>
+    sessionId === undefined ? null : state.activeTerminalId[sessionId] ?? null,
+}))
+
 function makeStore() {
   const listeners = new Set<() => void>()
-  let state: ConsolePanelState = { sidebarOpen: false, dialogOpen: false }
+  let state: ConsolePanelState = { sidebarOpen: {}, dialogOpen: {}, activeTerminalId: {} }
   return {
     getSnapshot: () => state,
     subscribe: (fn: () => void) => {
@@ -77,8 +92,8 @@ function renderDialog(store: ReturnType<typeof makeStore>, terminalPanel: Termin
       store: store as never,
       terminalPanel,
       sessions: {} as never,
-      sessionId: undefined,
-      useSessions: ((selector: (snapshot: never) => unknown) => selector({} as never)) as never,
+      sessionId: 'test-session',
+      useSessions: ((selector: (snapshot: never) => unknown) => selector({ byId: {} } as never)) as never,
       t: ((key: string) => key) as never,
     },
   ))
@@ -114,7 +129,7 @@ describe('palette snippet deletion', () => {
     const { container, root } = renderDialog(store, terminalPanel)
     try {
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen['test-session'] = true })
       })
       await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
       await act(async () => {})
@@ -191,7 +206,7 @@ describe('palette snippet deletion', () => {
     const { container, root } = renderDialog(store, terminalPanel)
     try {
       await act(async () => {
-        store.update(draft => { draft.dialogOpen = true })
+        store.update(draft => { draft.dialogOpen['test-session'] = true })
       })
       await act(async () => {})
       const openButton = container.querySelector<HTMLElement>('.dsh-devpanel-palette-open')

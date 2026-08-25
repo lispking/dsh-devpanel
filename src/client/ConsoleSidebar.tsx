@@ -20,6 +20,7 @@ import { CodeBlock, DiffBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-p
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ConsoleListDirResult, ConsoleReadFileResult } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
+import { activeTerminalFor, sidebarOpenFor } from './console-store.ts'
 import type { TerminalPanelFace } from './TerminateDialog.tsx'
 import { NS, type ConsoleKey } from './locales.ts'
 
@@ -29,7 +30,9 @@ export interface ConsoleSidebarInjected {
   store: SnapshotStore<ConsolePanelState>
   /** The mounted terminalPanel Remote namespace (file content reads). */
   terminalPanel: TerminalPanelFace
-  /** Close the layout's right details column (geometry lives with ctx.layout). */
+  /** Open the layout's right details column (geometry lives with ctx.layout). */
+  openDetails: () => void
+  /** Close the layout's right details column. */
   closeDetails: () => void
 }
 
@@ -246,6 +249,15 @@ function formatSize(bytes: number): string {
 }
 
 /**
+ * Per-chat-session sidebar panel state: the file each session last opened,
+ * plus the browse mode and expanded directories it was viewed in. Strict
+ * session-scope slots REMOUNT per session (key=sessionId), so the component's
+ * useState resets on every switch — the state survives here and is restored
+ * when the session's sidebar opens again.
+ */
+const sidebarSelections = new Map<string, { active: string | null; browse: boolean; expanded: string[] }>()
+
+/**
  * Render one read file: media (image/pdf/audio/video) natively, markdown
  * rendered, code highlighted, a binary notice, else plain text.
  */
@@ -408,9 +420,16 @@ function DirNode({ path, name, depth, terminalPanel, sessionCwd, cache, loadDir,
  * @param props - details standard kit (useSession), locale seat, injected face.
  * @returns the viewer while open, null while closed.
  */
-export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession, useSessions, sessionId, t }: ConsoleSidebarProps) {
+export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails, useSession, useSessions, sessionId, t }: ConsoleSidebarProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
-  const [active, setActive] = useState<string | null>(null)
+  // This session's own panel flags; each chat session remembers its own state.
+  const sidebarOpen = sidebarOpenFor(state, sessionId)
+  // The selected file, restored from this session's saved selection (the
+  // harness REMOUNTS session-scope slots per session, so a plain useState
+  // would reset on every switch).
+  const [active, setActive] = useState<string | null>(
+    () => sessionId === undefined ? null : sidebarSelections.get(sessionId)?.active ?? null,
+  )
   const [result, setResult] = useState<ConsoleReadFileResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [maximized, setMaximized] = useState(false)
@@ -425,10 +444,15 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   // the raw file body.
   const [diffOn, setDiffOn] = useState(false)
   // Browse mode: the session-artifact list vs a lazily-expanded directory tree
-  // rooted at the session's project directory (or the user home).
-  const [browse, setBrowse] = useState(false)
+  // rooted at the session's project directory (or the user home). The mode
+  // and the expanded directories restore per session (sidebarSelections).
+  const [browse, setBrowse] = useState(
+    () => sessionId === undefined ? false : sidebarSelections.get(sessionId)?.browse ?? false,
+  )
   const [cache, setCache] = useState<Map<string, DirCacheEntry>>(new Map())
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState(
+    () => new Set(sessionId === undefined ? [] : sidebarSelections.get(sessionId)?.expanded ?? []),
+  )
 
   const snapshot = useSession((s) => s)
   const { files, history } = collectArtifacts(snapshot)
@@ -465,9 +489,9 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   // dialog so the user can start one (spawn is async; a later click writes).
   const openInTerminal = (): void => {
     if (result === null) return
-    const activeId = state.activeTerminalId
+    const activeId = activeTerminalFor(state, sessionId)
     if (activeId === null) {
-      store.update(draft => { draft.dialogOpen = true })
+      if (sessionId !== undefined) store.update(draft => { draft.dialogOpen[sessionId] = true })
       return
     }
     const path = result.path
@@ -481,9 +505,9 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   // terminal open, just open the dialog (spawn is async; a later click lands).
   const enterDir = (path: string): void => {
     const target = path === '~' ? '~' : path
-    const activeId = state.activeTerminalId
+    const activeId = activeTerminalFor(state, sessionId)
     if (activeId === null) {
-      store.update(draft => { draft.dialogOpen = true })
+      if (sessionId !== undefined) store.update(draft => { draft.dialogOpen[sessionId] = true })
       return
     }
     void terminalPanel.write(activeId, `cd ${shellQuote(target)}`, true)
@@ -494,7 +518,7 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
   // reads only the bytes appended since the last offset, appends them to the
   // pane, and stops on a vanished file or when the mode / selection changes.
   useEffect(() => {
-    if (!state.sidebarOpen || !tailOn || active === null) {
+    if (!sidebarOpen || !tailOn || active === null) {
       if (!tailOn) setTailGone(false)
       return
     }
@@ -520,12 +544,12 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [state.sidebarOpen, tailOn, active, sessionCwd, terminalPanel])
+  }, [sidebarOpen, tailOn, active, sessionCwd, terminalPanel])
 
   // Read the active file's content through the Remote; abort a stale read when
   // the selection changes or the sidebar closes.
   useEffect(() => {
-    if (!state.sidebarOpen || active === null) {
+    if (!sidebarOpen || active === null) {
       setResult(null)
       setError(null)
       return
@@ -540,9 +564,33 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
       setError(t('sidebar.readError'))
     })
     return () => { controller.abort() }
-  }, [state.sidebarOpen, active, sessionCwd, terminalPanel, t])
+  }, [sidebarOpen, active, sessionCwd, terminalPanel, t])
 
-  if (!state.sidebarOpen) return null
+  // The harness layout closes the details column on EVERY session switch
+  // (AppFrame's close-on-change effect) and never reopens it on return.
+  // Re-open it whenever this session's sidebar is open — including when the
+  // session prop changes while the flag stays true — so switching back
+  // restores the visible panel instead of leaving a zero-width column.
+  useEffect(() => {
+    if (sidebarOpen) openDetails()
+  }, [sidebarOpen, sessionId, openDetails])
+
+  // Record this session's last panel state (file selection, browse mode,
+  // expanded directories) so a later remount (session switch) restores it.
+  useEffect(() => {
+    if (sessionId === undefined) return
+    sidebarSelections.set(sessionId, { active, browse, expanded: [...expanded] })
+  }, [sessionId, active, browse, expanded])
+
+  // Load listings for the restored expanded directories so the tree renders
+  // their children instead of hanging on the loading placeholder.
+  useEffect(() => {
+    if (sessionId === undefined) return
+    for (const path of expanded) loadDir(path)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore-time only
+  }, [])
+
+  if (!sidebarOpen) return null
   const treeProps = {
     terminalPanel, sessionCwd, cache, loadDir, expanded, toggleDir,
     onFile: openFile, onOpenDir: enterDir, t,
@@ -577,7 +625,7 @@ export function ConsoleSidebar({ store, terminalPanel, closeDetails, useSession,
             className="dsh-devpanel-close"
             aria-label={t('sidebar.close')}
             onClick={() => {
-              store.update(draft => { draft.sidebarOpen = false })
+              if (sessionId !== undefined) store.update(draft => { draft.sidebarOpen[sessionId] = false })
               closeDetails()
             }}
           >
