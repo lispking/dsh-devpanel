@@ -483,7 +483,11 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
-  width: min(520px, calc(100% - 32px));
+  /* Cap the palette width WITHOUT min(): if the embedded WebView drops the
+     min() declaration, width falls back to content width and a long command
+     stretches the whole panel past the viewport, clipping the trailing ×. */
+  width: calc(100% - 32px);
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--dsh-term-border);
@@ -545,6 +549,9 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 .dsh-devpanel-palette-list {
   max-height: 220px;
   overflow-y: auto;
+  /* Never a horizontal scrollbar: long commands must ellipsize inside the
+     row, not push the per-row × (a flex item below) out of view. */
+  overflow-x: hidden;
   padding: 0 4px 4px;
 }
 .dsh-devpanel-palette-empty {
@@ -553,13 +560,17 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   color: var(--dsh-term-muted);
 }
 .dsh-devpanel-palette-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: calc(100% - 4px);
-  margin: 2px;
-  padding: 4px 28px 4px 10px;
+  /* Table layout with fixed column widths: older embedded WebViews do not
+     reliably shrink flex items (min-width:auto keeps nowrap text at content
+     width), which blows the row wide and lets overflow-x:hidden clip the
+     trailing ×. table-layout:fixed pins the name/command/delete columns, so
+     long commands always ellipsize inside the row and the × keeps its own
+     fixed column that never gets clipped. */
+  display: table;
+  table-layout: fixed;
+  width: 100%;
+  margin: 2px 0;
+  padding: 0;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -570,15 +581,19 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   color: var(--dsh-term-fg);
 }
 .dsh-devpanel-palette-name {
-  flex: none;
-  max-width: 40%;
+  display: table-cell;
+  vertical-align: middle;
+  width: 40%;
+  padding: 4px 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--dsh-term-fg);
 }
 .dsh-devpanel-palette-command {
-  flex: 1;
+  display: table-cell;
+  vertical-align: middle;
+  padding: 4px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -587,9 +602,11 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   font-size: 11px;
 }
 .dsh-devpanel-palette-delete {
-  position: absolute;
-  right: 6px;
-  padding: 0 4px;
+  display: table-cell;
+  vertical-align: middle;
+  width: 24px;
+  text-align: center;
+  padding: 4px 0;
   border-radius: 4px;
   color: var(--dsh-term-muted);
   cursor: pointer;
