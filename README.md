@@ -91,7 +91,9 @@ Click the panel icon in the session header to toggle the file sidebar in the rig
 
 - `.md` / `.mdx` renders as Markdown;
 - common code extensions get syntax-highlighted blocks;
-- images (`png`, `jpg`, `gif`, `webp`, `avif`, `svg`, …) render inline as data URLs;
+- images (`png`, `jpg`, `gif`, `webp`, `avif`, `svg`, `tiff`, `heic`, …) render inline as data URLs;
+- PDFs render in a native embedded viewer; audio (`mp3`, `wav`, `ogg`, `flac`, …) and video (`mp4`, `webm`, `mov`, …) play inline;
+- unrecognized binary files show a file-info notice instead of decoded garbage;
 - anything else renders as plain text.
 
 Use the `⛶` button to open the current file fullscreen; the `×` button closes the sidebar.
@@ -109,7 +111,7 @@ The `terminalPanel` namespace is available on the client as `ctx.remote.terminal
 | `terminate` | `id` | `{ ok: true }` | Terminate the captured process tree (2 s grace) and await quiescence; the record stays listed as exited. |
 | `list` | — | `{ sessions }` | List live sessions in creation order. |
 | `dispose` | `id` | `{ ok: true }` | Remove the session record, terminating it first if still running; unknown ids are idempotently ok. |
-| `readFile` | `path, cwd?` | `{ path, content, kind, dataUrl? }` | Read one file for the viewer. `~`-prefixed and relative paths resolve against `cwd` (default: host cwd); images return a base64 data URL. |
+| `readFile` | `path, cwd?` | `{ path, content, kind, dataUrl?, size? }` | Read one file for the viewer. `~`-prefixed and relative paths resolve against `cwd` (default: host cwd); image/pdf/audio/video return a base64 data URL, unknown binary files return only their byte size (`kind: 'binary'`). |
 
 Session status is `{ kind: 'running' }` or `{ kind: 'exited', exitCode, signal }`. The full TypeScript vocabulary lives in `src/types.ts` and is re-exported from the package's `./types` entry.
 
