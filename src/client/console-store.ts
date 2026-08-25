@@ -17,9 +17,13 @@ export interface ConsolePanelState {
   sidebarOpen: boolean
   /** Whether the Terminate dialog under the composer is open. */
   dialogOpen: boolean
+  /** Session id of the terminal tab currently shown in the dialog, or null
+   *  while the dialog is closed. The sidebar writes into this session when the
+   *  user asks to open a file in the terminal. */
+  activeTerminalId: string | null
 }
 
 /** Create the browser-wide console state source. */
 export function createConsoleStore(): SnapshotStore<ConsolePanelState> {
-  return createSnapshotStore({ sidebarOpen: false, dialogOpen: false })
+  return createSnapshotStore({ sidebarOpen: false, dialogOpen: false, activeTerminalId: null })
 }

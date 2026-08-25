@@ -578,6 +578,13 @@ function TerminateView({
     })
   }
 
+  // Publish the active session id into the shared store so the sidebar can
+  // write into the same PTY ("open in terminal"). Closing the dialog (open
+  // false) clears activeId through the close effect, which lands here too.
+  useEffect(() => {
+    store.update(draft => { draft.activeTerminalId = activeId })
+  }, [store, activeId])
+
   // Open the dialog: restore the previous session layout. Live host sessions
   // (surviving a page refresh) are ADOPTED into fresh xterm instances; a host
   // restart leaves none, so the persisted descriptors are respawned instead;
