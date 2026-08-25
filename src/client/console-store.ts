@@ -24,6 +24,8 @@ export interface ConsolePanelState {
   sidebarOpen: Record<string, boolean>
   /** Per-session open flags for the Terminate dialog, keyed by session id. */
   dialogOpen: Record<string, boolean>
+  /** Per-session open flags for the usage stats panel, keyed by session id. */
+  statsOpen: Record<string, boolean>
   /** Per-session id of the terminal tab currently shown in the dialog, or
    *  null while the dialog is closed. The sidebar writes into this session's
    *  tab when the user asks to open a file in the terminal. */
@@ -40,6 +42,11 @@ export function dialogOpenFor(state: ConsolePanelState, sessionId: string | unde
   return sessionId === undefined ? false : state.dialogOpen[sessionId] ?? false
 }
 
+/** Read one session's usage-panel open flag (no session or absent means closed). */
+export function statsOpenFor(state: ConsolePanelState, sessionId: string | undefined): boolean {
+  return sessionId === undefined ? false : state.statsOpen[sessionId] ?? false
+}
+
 /** Read one session's active terminal tab id (no session or absent means none). */
 export function activeTerminalFor(state: ConsolePanelState, sessionId: string | undefined): string | null {
   return sessionId === undefined ? null : state.activeTerminalId[sessionId] ?? null
@@ -47,5 +54,5 @@ export function activeTerminalFor(state: ConsolePanelState, sessionId: string | 
 
 /** Create the browser-wide console state source. */
 export function createConsoleStore(): SnapshotStore<ConsolePanelState> {
-  return createSnapshotStore({ sidebarOpen: {}, dialogOpen: {}, activeTerminalId: {} })
+  return createSnapshotStore({ sidebarOpen: {}, dialogOpen: {}, statsOpen: {}, activeTerminalId: {} })
 }

@@ -20,6 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { ConsoleHeaderActions } from './ConsoleHeaderActions.tsx'
 import { ConsoleSidebar } from './ConsoleSidebar.tsx'
 import { TerminateDialog, type TerminalPanelFace } from './TerminateDialog.tsx'
+import type { UsagePanelFace } from './UsagePanel.tsx'
 import { createConsoleStore } from './console-store.ts'
 import { installConsoleStyles } from './console.css.ts'
 import { en, NS, zh } from './locales.ts'
@@ -69,11 +70,20 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   // instance out of the service store (ctx.get bypasses the inject check) and
   // close over it in the slot's inject factory.
   const terminalPanel = ctx.get('remote.terminalPanel') as TerminalPanelFace
+  // The usage service is OPTIONAL for the terminal: if the gateway has not
+  // (yet) exposed it, degrade gracefully (no stats button) instead of letting
+  // a single `ctx.get` throw take down every slot including the terminal.
+  let usagePanel: UsagePanelFace | undefined
+  try {
+    usagePanel = ctx.get('remote.usagePanel') as UsagePanelFace
+  } catch {
+    usagePanel = undefined
+  }
 
   // Session-header utilities (the right-aligned group at the far end of the
-  // header, past the job list): the terminal dialog toggle and the file
-  // sidebar toggle. The sidebar toggle also drives the layout's right
-  // details column (list slot, session scope).
+  // header, past the job list): the terminal dialog toggle, the file
+  // sidebar toggle, and the usage stats toggle. The sidebar toggle also
+  // drives the layout's right details column (list slot, session scope).
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',
     id: 'toolkit-actions',
@@ -81,6 +91,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     locale: NS,
     inject: () => ({
       store,
+      usagePanel,
       openSidebar: () => { ctx.layout.openDetails() },
       closeSidebar: () => { ctx.layout.closeDetails() },
     }),

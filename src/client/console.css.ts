@@ -1306,6 +1306,433 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 .xterm .xterm-scrollable-element > .shadow.top.left {
 	box-shadow: var(--vscode-scrollbar-shadow, #000) 6px 0 6px -6px inset;
 }
+
+/* ── Usage stats panel (dsh-devpanel) ─────────────────────────────── */
+.dsh-usage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.dsh-usage-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 920px;
+  max-height: 100%;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+.dsh-usage-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  flex: none;
+}
+.dsh-usage-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.dsh-usage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dsh-usage-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-3, #f3f4f6);
+}
+.dsh-usage-tab {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  cursor: pointer;
+  font: inherit;
+}
+.dsh-usage-tab:hover {
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-usage-tab.active {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+/* Functional tab bar (overview / calls / terminals). */
+.dsh-usage-tabbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--dsw-alias-border, #e5e7eb);
+}
+.dsh-usage-tabbar-tab {
+  padding: 6px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.dsh-usage-tabbar-tab:hover {
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-usage-tabbar-tab.active {
+  color: var(--dsw-alias-state-business-primary, #2563eb);
+  border-bottom-color: var(--dsw-alias-state-business-primary, #2563eb);
+  font-weight: 600;
+}
+.dsh-usage-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-usage-select select {
+  padding: 3px 6px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  font: inherit;
+  max-width: 260px;
+}
+.dsh-usage-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.dsh-usage-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  color: var(--dsw-alias-label-primary, #111827);
+  cursor: pointer;
+  font: inherit;
+}
+.dsh-usage-btn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+.dsh-usage-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dsh-usage-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.dsh-usage-close:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-usage-body {
+  overflow-y: auto;
+  padding: 14px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dsh-usage-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.dsh-usage-card {
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+}
+.dsh-usage-card-label {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-usage-card-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.dsh-usage-card-dim {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  margin-top: 2px;
+}
+.dsh-usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dsh-usage-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #111827);
+}
+.dsh-usage-trend-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-usage-trend-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dsh-usage-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.dsh-usage-swatch.ai {
+  background: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-usage-swatch.term {
+  background: #059669;
+}
+.dsh-usage-trend {
+  position: relative;
+  height: 120px;
+}
+.dsh-usage-trend-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dsh-usage-trend-line.ai {
+  fill: none;
+  stroke: var(--dsw-alias-state-business-primary, #2563eb);
+  stroke-width: 2;
+}
+.dsh-usage-trend-line.term {
+  fill: none;
+  stroke: #059669;
+  stroke-width: 2;
+}
+.dsh-usage-trend-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.dsh-usage-trend-cell {
+  flex: 1;
+  min-width: 0;
+}
+.dsh-usage-trend-x {
+  display: flex;
+  margin-top: 4px;
+}
+.dsh-usage-trend-xcell {
+  flex: 1;
+  min-width: 0;
+}
+.dsh-usage-trend-label {
+  font-size: 10px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  white-space: nowrap;
+}
+.dsh-usage-heatmap {
+  display: flex;
+  gap: 3px;
+  padding-bottom: 4px;
+}
+.dsh-usage-heat-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.dsh-usage-heat-cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  background: var(--dsw-alias-bg-layer-3, #e5e7eb);
+}
+.dsh-usage-heat-cell.l1 { background: #bfdbfe; }
+.dsh-usage-heat-cell.l2 { background: #93c5fd; }
+.dsh-usage-heat-cell.l3 { background: #3b82f6; }
+.dsh-usage-heat-cell.l4 { background: #1d4ed8; }
+.dsh-usage-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dsh-usage-model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dsh-usage-model-name {
+  width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.dsh-usage-model-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3, #e5e7eb);
+  overflow: hidden;
+}
+.dsh-usage-model-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--dsw-alias-state-business-primary, #2563eb);
+}
+.dsh-usage-model-meta {
+  width: 120px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-variant-numeric: tabular-nums;
+}
+.dsh-usage-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dsh-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.dsh-usage-table th,
+.dsh-usage-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
+  text-align: left;
+  white-space: nowrap;
+}
+.dsh-usage-table th {
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+.dsh-usage-table td.num,
+.dsh-usage-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dsh-usage-table td {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsh-usage-commands {
+  cursor: help;
+}
+.dsh-usage-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.dsh-usage-pager-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  color: var(--dsw-alias-label-primary, #111827);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.dsh-usage-pager-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dsh-usage-pager-info {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-variant-numeric: tabular-nums;
+}
+.dsh-usage-loading,
+.dsh-usage-empty {
+  padding: 18px 0;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+}
+.dsh-usage-error {
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-state-error-primary, #dc2626);
+  border-radius: 8px;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: rgba(220, 38, 38, 0.08);
+}
+/* Hover tooltip for the trend bars and heatmap cells (fixed-position bubble). */
+.dsh-usage-tooltip {
+  position: fixed;
+  z-index: 1100;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #f9fafb;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  max-width: 280px;
+  white-space: nowrap;
+}
+.dsh-usage-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.dsh-usage-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dsh-usage-tooltip-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+/* Detail-table footer: page-size selector on the left, pager on the right. */
+.dsh-usage-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 `
 
 /** Inject the console stylesheet for the plugin's lifetime. */

@@ -14,8 +14,9 @@ import { IconPanelLeftOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 // (declared by ui-conversation) into this program so PropsRuntime resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConsolePanelState } from './console-store.ts'
-import { dialogOpenFor, sidebarOpenFor } from './console-store.ts'
+import { dialogOpenFor, sidebarOpenFor, statsOpenFor } from './console-store.ts'
 import { NS } from './locales.ts'
+import { UsagePanel, type UsagePanelFace } from './UsagePanel.tsx'
 
 /**
  * The international terminal glyph (`>_`, the Lucide "Terminal" icon): a
@@ -33,6 +34,20 @@ function IconTerminal16(): React.JSX.Element {
   )
 }
 
+/** The Lucide "BarChart3" glyph for the usage-stats toggle (not in primitives). */
+function IconBarChart16(): React.JSX.Element {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+      <line x1="3" y1="3" x2="3" y2="21" />
+      <line x1="21" y1="21" x2="3" y2="21" />
+      <line x1="7" y1="15" x2="7" y2="21" />
+      <line x1="12" y1="10" x2="12" y2="21" />
+      <line x1="17" y1="6" x2="17" y2="21" />
+    </svg>
+  )
+}
+
 /** Injected business face: the shared console store + details-column open/close. */
 export interface ConsoleHeaderActionsInjected {
   /** Shared sidebar/dialog open state; each button flips its own flag. */
@@ -41,6 +56,9 @@ export interface ConsoleHeaderActionsInjected {
   openSidebar: () => void
   /** Close the layout's right details column. */
   closeSidebar: () => void
+  /** The usagePanel Remote face (the usage stats panel); undefined when the
+   *  gateway has not exposed the usage service — the stats toggle is hidden. */
+  usagePanel: UsagePanelFace | undefined
 }
 
 /** Full component props: header utility standard kit + locale seat + injected store. */
@@ -55,10 +73,11 @@ export type ConsoleHeaderActionsProps =
  * @param props - standard header kit, locale seat, injected store + column toggles.
  * @returns the file-sidebar and terminal toggles reflecting the shared store.
  */
-export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, sessionId, t }: ConsoleHeaderActionsProps) {
+export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, usagePanel, sessionId, t }: ConsoleHeaderActionsProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const dialogOpen = dialogOpenFor(state, sessionId)
   const sidebarOpen = sidebarOpenFor(state, sessionId)
+  const statsOpen = statsOpenFor(state, sessionId)
   return (
     <div className="dsh-devpanel-header-actions">
       <button
@@ -86,6 +105,27 @@ export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, session
       >
         <IconPanelLeftOutline16 />
       </button>
+      {usagePanel !== undefined && (
+        <>
+          <button
+            type="button"
+            className="dsh-devpanel-header-icon"
+            aria-pressed={statsOpen}
+            aria-label={t('header.usage.aria')}
+            title={t('header.usage.aria')}
+            onClick={() => { store.update(draft => { draft.statsOpen[sessionId] = !statsOpen }) }}
+          >
+            <IconBarChart16 />
+          </button>
+          {statsOpen && (
+            <UsagePanel
+              usagePanel={usagePanel}
+              t={t}
+              onClose={() => { store.update(draft => { draft.statsOpen[sessionId] = false }) }}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }
