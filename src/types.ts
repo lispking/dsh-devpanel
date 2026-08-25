@@ -91,12 +91,14 @@ export interface ConsoleListResult {
 export interface ConsoleReadFileResult {
   /** Resolved absolute path on the host. */
   path: string
-  /** UTF-8 file content (kind: 'text'). */
+  /** UTF-8 file content (kind: 'text'; empty for other kinds). */
   content: string
   /** Content classification the host derived from the extension. */
-  kind: 'text' | 'image'
-  /** Base64 data URL (kind: 'image'). */
+  kind: 'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary'
+  /** Base64 data URL (kind: 'image' | 'pdf' | 'audio' | 'video'). */
   dataUrl?: string
+  /** File size in bytes (kind: 'binary'; raw bytes are not transmitted). */
+  size?: number
 }
 
 /** One entry of a directory listing. */

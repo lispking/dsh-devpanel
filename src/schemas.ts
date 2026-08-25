@@ -60,12 +60,20 @@ export const listResultSchema = z.object({ sessions: z.array(sessionViewSchema) 
 /** Dispose result: always ok (idempotent on unknown ids). */
 export const disposeResultSchema = z.object({ ok: z.literal(true) })
 
-/** Read-file result: path, text/image classification, content or data URL. */
+/** Read-file result: path, classification, content or data URL. */
 export const readFileResultSchema = z.object({
   path: z.string(),
   content: z.string(),
-  kind: z.union([z.literal('text'), z.literal('image')]),
+  kind: z.union([
+    z.literal('text'),
+    z.literal('image'),
+    z.literal('pdf'),
+    z.literal('audio'),
+    z.literal('video'),
+    z.literal('binary'),
+  ]),
   dataUrl: z.string().optional(),
+  size: z.number().optional(),
 })
 
 /** One directory entry (name + dir/file kind). */
