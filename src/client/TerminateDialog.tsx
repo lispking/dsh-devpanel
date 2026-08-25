@@ -447,7 +447,12 @@ function TerminateView({
       cursorStyle: 'block',
       scrollback: 5000,
       rightClickSelectsWord: true,
-      allowProposedApi: false,
+      // SearchAddon's match/active-match highlight decorations (passed to
+      // findNext/findPrevious below) are implemented on top of the proposed
+      // registerDecoration API — with allowProposedApi:false every findNext
+      // THROWS ("You must set the allowProposedApi option to true to use
+      // proposed API") and search silently never finds anything. Enable it.
+      allowProposedApi: true,
       // Palette follows the harness theme (dark/light); the ANSI 16-color set
       // is tuned per palette so colored output (git, ls, prompts) reads on
       // either canvas.
