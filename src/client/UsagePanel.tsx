@@ -717,7 +717,6 @@ export function UsagePanel({ usagePanel, onClose, t }: UsagePanelProps): React.J
               )}
               {tab === 'calls' && (
                 <section className="dsh-usage-section">
-                  <h3 className="dsh-usage-section-title">{t('usage.section.calls')}</h3>
                   <CallsTable
                     page={calls}
                     pageSize={callsPageSize}
@@ -729,7 +728,6 @@ export function UsagePanel({ usagePanel, onClose, t }: UsagePanelProps): React.J
               )}
               {tab === 'terminals' && (
                 <section className="dsh-usage-section">
-                  <h3 className="dsh-usage-section-title">{t('usage.section.terminals')}</h3>
                   <ToolShare snapshot={snapshot} t={t} />
                   <TerminalsTable
                     page={terminals}
