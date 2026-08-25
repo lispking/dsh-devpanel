@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
-import TerminalPanelService from '../src/index.ts'
+import { TerminalPanelService } from '../src/index.ts'
 
 /** Collect every live context so disposal assertions run per test. */
 const contexts = new Set<Context>()

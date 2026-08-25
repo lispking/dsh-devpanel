@@ -11,7 +11,7 @@ import { PassThrough } from 'node:stream'
 import { Terminal } from '@xterm/xterm'
 import { Context } from '@deepseek-ai/cordis'
 import type { SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
-import TerminalPanelService from '../src/index.ts'
+import { TerminalPanelService } from '../src/index.ts'
 
 class ResizeObserverStub {
   observe = vi.fn()
