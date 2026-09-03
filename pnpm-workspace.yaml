@@ -17,3 +17,9 @@ allowBuilds:
   koffi: false
   node-pty: false
   protobufjs: false
+
+# The workspace spans ../deepseek-harness, whose own lockfile pins
+# @earendil-works/pi-ai 0.84.2 (its llm-pi-ai drift gates compile against that
+# exact type surface). Keep this workspace's resolution aligned with it.
+overrides:
+  '@earendil-works/pi-ai': 0.84.2

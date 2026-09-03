@@ -11,12 +11,17 @@
  * @module dsh-devpanel/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-// Type-only: pulls the client Context merges for ctx.locale and ctx.remote
-// (and the forwarded-event key face) into this program.
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+// Type-only: pulls the client Context merges this apply body relies on into
+// the program — ctx.locale (client-locale), ctx.remote (api-remotes),
+// ctx.sessions (api-session-controller), ctx.slots (ui-renderer), and
+// ctx.layout (ui-layout).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { ConsoleHeaderActions } from './ConsoleHeaderActions.tsx'
 import { ConsoleSidebar } from './ConsoleSidebar.tsx'
 import { TerminateDialog, type TerminalPanelFace } from './TerminateDialog.tsx'

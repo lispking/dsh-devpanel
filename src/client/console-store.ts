@@ -16,7 +16,7 @@
 
 import {
   createSnapshotStore, type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-store'
 
 /** Shared console state, per-session keyed. */
 export interface ConsolePanelState {

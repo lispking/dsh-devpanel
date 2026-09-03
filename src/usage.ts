@@ -139,13 +139,29 @@ export function activityFromEvent(event: SessionEvent, state: CollectState = new
 }
 
 /**
+ * The seq after the fork-inherited prefix in a stored session log, 0 when the
+ * log carries no marker. The harness persists the durable fork cut as a
+ * `session/end-seed` marker appended right after the inherited prefix (the old
+ * `header.seedLength` field no longer exists); a resumed seed is not re-marked,
+ * so the LAST marker is the boundary.
+ */
+function forkBoundary(events: readonly SessionEvent[]): number {
+  let cut = 0
+  for (const event of events) {
+    if (event.type === 'session/end-seed') cut = event.seq + 1
+  }
+  return cut
+}
+
+/**
  * Summarize a full session log into an AI-side summary. A forked child stores
- * the parent's copied prefix in its own log; the durable fork boundary is
- * `header.seedLength`, so events before it belong to the parent and are
- * skipped (they would otherwise double-count inherited context).
+ * the parent's copied prefix in its own log; the durable fork boundary is the
+ * `session/end-seed` marker (see {@link forkBoundary}), so events before it
+ * belong to the parent and are skipped (they would otherwise double-count
+ * inherited context).
  */
 export function summarizeSession(header: SessionHeader, events: readonly SessionEvent[], indexedAt = Date.now()): UsageSessionSummary {
-  const firstOwnSeq = header.parentSession !== undefined ? (header.seedLength ?? 0) : 0
+  const firstOwnSeq = header.parentSession !== undefined ? forkBoundary(events) : 0
   const activities: UsageAiActivity[] = []
   const state = newCollectState()
   for (const event of events) {
