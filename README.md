@@ -5,7 +5,7 @@
 `dsh-devpanel` is a plugin for the DeepSeek Harness that brings three things into the browser console:
 
 - **Terminal panel** — a multi-tab, real PTY terminal docked under the composer. Start and stop processes, type commands by hand, and watch live output, just like a native terminal.
-- **AI-output sidebar** — a right-hand file viewer that lists every file the AI wrote or edited in the current session, with syntax highlighting, Markdown rendering, and image preview.
+- **AI-output sidebar** — a right-hand file viewer that lists every file the AI wrote or edited in the current session, plus files created or modified by its shell commands, with syntax highlighting, Markdown rendering, and image preview.
 - **Usage stats panel** — a modal dashboard that merges TWO usage dimensions into one "how much did I actually work" view: AI activity (tokens, calls, messages, model share) and terminal activity (sessions, submitted commands, wall time — the dimension only dsh-devpanel can see, because it owns the terminal panel).
 
 The terminal and file surfaces are driven by `TerminalPanelService`; the usage panel by `UsageService`. Both wrap harness primitives (`ctx.subprocess.spawnTerminal` for the PTY, the `session/event` firehose + terminal events for usage) and are exposed to the browser over the Typert Remote boundary — **no harness changes required**. The Gateway auto-discovers both services through their `typertRemote` bindings.
@@ -17,7 +17,7 @@ The terminal and file surfaces are driven by `TerminalPanelService`; the usage p
 - **Native terminal behavior** — copy-on-select writes the selection to the clipboard, `Cmd/Ctrl+Shift+V` pastes, `clear` works, and multi-byte UTF-8 output survives arbitrary byte-chunk splits without `?` mojibake.
 - **Process control** — deliver `SIGINT` / `SIGTERM` / `SIGKILL` / `SIGTSTP` / `SIGHUP` to the verified foreground process group, or terminate the captured process tree with a 2-second grace period.
 - **Live output deltas** — the browser polls `read` for incremental output; the host keeps a per-session scrollback (1 MB tail) so long output stays browsable without unbounded memory.
-- **AI-output file sidebar** — collects the files the session's `write`/`edit` tool calls produced (from diff views and raw args, de-duplicated in first-seen order), reads them through the remote, and renders them as image, Markdown, highlighted code, or plain text, with a fullscreen mode.
+- **AI-output file sidebar** — collects the files the session's `write`/`edit` tool calls produced (from diff views and raw args, de-duplicated in first-seen order) plus shell-command products (paths extracted from terminal-card commands/output, verified on the host by existence + mtime window), reads them through the remote, and renders them as image, Markdown, highlighted code, or plain text, with a fullscreen mode.
 - **Dual-dimension usage stats** — a modal dashboard (session-header bar-chart icon) folding the AI side of the `session/event` firehose (tokens, calls, messages, per-model share, response duration, reasoning effort) and the terminal side (sessions, submitted commands, wall time) into overview cards, a daily dual-series trend, a yearly activity heatmap, paginated call + terminal detail tables, and CSV/JSON export. Historical chat sessions are replayed best-effort through `ctx.sessionQuery`; the index is persisted (debounced, atomic) under `DSH_HOME/devpanel/usage-v1.json`.
 - **Session-scoped cwd** — the terminal and relative file reads resolve against the session's project directory (falling back to the user home / host cwd).
 - **Bilingual UI** — Simplified Chinese and English dictionaries, registered in the `toolkit` locale namespace.
@@ -68,6 +68,7 @@ The plugin is a two-face bundle, mirroring the harness client preset:
 `dsh-devpanel` is developed as a workspace package next to the harness source. Requirements:
 
 - Node `^22.19.0 || >=24.0.0`
+- **DeepSeek Harness `dsh-v0.1.2-alpha.4` or newer** — the client preset and session-log format this plugin targets do not exist in older releases
 - pnpm workspace including `../deepseek-harness` (see `pnpm-workspace.yaml`)
 
 ```bash
@@ -75,6 +76,8 @@ The plugin is a two-face bundle, mirroring the harness client preset:
 pnpm install
 pnpm --filter dsh-devpanel build
 ```
+
+> **Minimum harness version.** This build depends on two harness refactors that first shipped in `dsh-v0.1.2-alpha.4`: the split of the legacy `dsh-client-runtime` client preset into `dsh-client-store` + the `dsh-client-ui-*` packages, and the session-log format rework (`SessionHeader.isSeeded` + `session/end-seed` markers replacing the removed `seedLength` field). Older harness releases — through `dsh-v0.1.2-alpha.3` and all `dsh-v0.1.1-rc.*` — are **not** supported: the plugin's client half injects modules those runtimes do not provide (the terminal dialog and file sidebar fail to mount), and the usage service cannot read their legacy session headers.
 
 The plugin contributes a bundle row via `cordis.patch.yml` (`{ id: toolkit, name: dsh-devpanel }`); enable it in a harness profile that lists this bundle. The published package exposes four entry points:
 
@@ -95,7 +98,7 @@ Input is delivered keystroke-by-keystroke into the PTY (Enter included, no newli
 
 ### AI-output sidebar
 
-Click the panel icon in the session header to toggle the file sidebar in the right details column. It lists every file the current session's `write` / `edit` tool calls produced (in first-seen order, de-duplicated). Click a file to read it through the host:
+Click the panel icon in the session header to toggle the file sidebar in the right details column. It lists every file the current session's `write` / `edit` tool calls produced (from diff views and raw args, in first-seen order, de-duplicated), PLUS files the session's shell commands created or modified: file paths are extracted from the terminal-card command lines and captured output, then verified against the host filesystem — a candidate enters the list only when the file exists and its mtime falls inside the producing tool call's window. Click a file to read it through the host:
 
 - `.md` / `.mdx` renders as Markdown;
 - common code extensions get syntax-highlighted blocks;
@@ -134,6 +137,7 @@ The `terminalPanel` namespace is available on the client as `ctx.remote.terminal
 | `list` | — | `{ sessions }` | List live sessions in creation order. |
 | `dispose` | `id` | `{ ok: true }` | Remove the session record, terminating it first if still running; unknown ids are idempotently ok. |
 | `readFile` | `path, cwd?` | `{ path, content, kind, dataUrl?, size? }` | Read one file for the viewer. `~`-prefixed and relative paths resolve against `cwd` (default: host cwd); image/pdf/audio/video return a base64 data URL, unknown binary files return only their byte size (`kind: 'binary'`). |
+| `statFile` | `path, cwd?` | `{ path, exists, kind?, mtimeMs?, size? }` | Probe one path's existence and metadata (the shell-artifact verifier); a missing or unresolvable target reports `exists: false` instead of throwing. |
 
 Session status is `{ kind: 'running' }` or `{ kind: 'exited', exitCode, signal }`. The full TypeScript vocabulary lives in `src/types.ts` and is re-exported from the package's `./types` entry.
 

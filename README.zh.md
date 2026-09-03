@@ -5,7 +5,7 @@
 `dsh-devpanel` 是 DeepSeek Harness 的一个插件，为浏览器控制台带来三大能力：
 
 - **终端面板** —— 停靠在输入框下方的多标签真实 PTY 终端。可以开始/终止进程、手工输入命令，实时查看输出，体验和原生终端一致。
-- **AI 输出侧边栏** —— 右侧文件浏览器，列出当前会话中 AI 写入或编辑过的所有文件，支持语法高亮、Markdown 渲染和图片预览。
+- **AI 输出侧边栏** —— 右侧文件浏览器，列出当前会话中 AI 写入或编辑过的所有文件，以及 shell 命令创建或修改的文件，支持语法高亮、Markdown 渲染和图片预览。
 - **使用统计面板** —— 模态仪表盘，把两个维度合并成一个「我今天到底干了多少活」视图：AI 活动（Token、调用、消息、模型占比）与终端活动（会话数、提交的命令、活跃时长 —— 只有 dsh-devpanel 能看到这个维度，因为它拥有终端面板）。
 
 终端与文件界面由 `TerminalPanelService` 驱动，统计面板由 `UsageService` 驱动。两者分别封装 harness 的 `ctx.subprocess.spawnTerminal` PTY 原语与 `session/event` 事件流 + 终端事件，并通过 Typert Remote 边界暴露给浏览器 —— **无需改动 harness 本身**。Gateway 通过各自的 `typertRemote` 绑定自动发现这两个服务。
@@ -17,7 +17,7 @@
 - **原生终端行为** —— 选中即复制到剪贴板，`Cmd/Ctrl+Shift+V` 粘贴，`clear` 正常清屏，跨任意字节分片的多字节 UTF-8 输出不会出现 `?` 乱码。
 - **进程控制** —— 可向前台进程组投递 `SIGINT` / `SIGTERM` / `SIGKILL` / `SIGTSTP` / `SIGHUP`，或带 2 秒宽限期终止捕获的进程树。
 - **增量输出读取** —— 浏览器轮询 `read` 获取增量输出；宿主端为每个会话保留有界回滚缓冲（保留尾部 1 MB），长输出可浏览且内存不会无限增长。
-- **AI 输出文件侧边栏** —— 收集当前会话 `write` / `edit` 工具调用产生的文件（来源包括 diff 视图与原始参数，按首次出现顺序去重），通过 Remote 读取内容，按图片、Markdown、高亮代码或纯文本渲染，并支持全屏查看。
+- **AI 输出文件侧边栏** —— 收集当前会话 `write` / `edit` 工具调用产生的文件（来源包括 diff 视图与原始参数，按首次出现顺序去重），以及 shell 命令产物（从终端卡片命令/输出提取路径，经宿主端"存在 + mtime 时间窗"校验），通过 Remote 读取内容，按图片、Markdown、高亮代码或纯文本渲染，并支持全屏查看。
 - **AI+终端双维使用统计** —— 会话头部柱状图图标打开的模态仪表盘：把 `session/event` 事件流的 AI 侧（Token、调用、消息、模型占比、响应时长、思考度）与终端侧（会话数、提交命令、活跃时长）折叠成概览卡片、每日双系列趋势、年度活跃热力图、分页的调用/终端明细表，以及 CSV/JSON 导出。历史会话在启动时尽力通过 `ctx.sessionQuery` 回放；索引以防抖、原子写方式持久化到 `DSH_HOME/devpanel/usage-v1.json`。
 - **会话级工作目录** —— 终端与相对路径文件读取都基于会话的项目目录解析（缺省回退到用户主目录 / 宿主进程 cwd）。
 - **双语 UI** —— 简体中文与英文词典，注册在 `toolkit` 语言命名空间下。
@@ -68,6 +68,7 @@
 `dsh-devpanel` 作为 workspace 包与 harness 源码并列开发。环境要求：
 
 - Node `^22.19.0 || >=24.0.0`
+- **DeepSeek Harness `dsh-v0.1.2-alpha.4` 及以上**——本插件依赖的客户端 preset 与会话日志格式在更早版本中不存在
 - 包含 `../deepseek-harness` 的 pnpm workspace（见 `pnpm-workspace.yaml`）
 
 ```bash
@@ -75,6 +76,8 @@
 pnpm install
 pnpm --filter dsh-devpanel build
 ```
+
+> **最低 harness 版本。** 本构建依赖两项最早随 `dsh-v0.1.2-alpha.4` 发布的 harness 重构：其一是把旧 `dsh-client-runtime` 客户端 preset 拆分为 `dsh-client-store` + 各 `dsh-client-ui-*` 包，其二是会话日志格式改造（`SessionHeader.isSeeded` + `session/end-seed` 标记取代已移除的 `seedLength` 字段）。更旧的 harness 版本——`dsh-v0.1.2-alpha.3` 及以下、以及所有 `dsh-v0.1.1-rc.*`——**均不受支持**：插件客户端注入的模块在这些运行时中不存在（终端对话框与文件侧边栏无法挂载），使用统计服务也无法读取其旧版会话头。
 
 插件通过 `cordis.patch.yml` 贡献一条 bundle 记录（`{ id: toolkit, name: dsh-devpanel }`）；在列出该 bundle 的 harness profile 中启用即可。发布包暴露四个入口：
 
@@ -95,7 +98,7 @@ pnpm --filter dsh-devpanel build
 
 ### AI 输出侧边栏
 
-点击会话头部的面板图标开关右侧 details 列的文件侧边栏。它列出当前会话 `write` / `edit` 工具调用产生的全部文件（按首次出现顺序去重）。点击文件即通过宿主端读取：
+点击会话头部的面板图标开关右侧 details 列的文件侧边栏。它列出当前会话 `write` / `edit` 工具调用产生的全部文件（来源包括 diff 视图与原始参数，按首次出现顺序去重），以及会话中 shell 命令创建或修改的文件：从终端卡片的命令行与输出中提取文件路径，再经宿主端校验（文件存在且 mtime 落在产生它的工具调用时间窗内）才进入列表。点击文件即通过宿主端读取：
 
 - `.md` / `.mdx` 渲染为 Markdown；
 - 常见代码扩展名获得语法高亮；
@@ -132,6 +135,7 @@ pnpm --filter dsh-devpanel build
 | `list` | — | `{ sessions }` | 按创建顺序列出存活会话。 |
 | `dispose` | `id` | `{ ok: true }` | 移除会话记录，若仍在运行则先终止；未知 id 幂等返回 ok。 |
 | `readFile` | `path, cwd?` | `{ path, content, kind, dataUrl? }` | 为浏览器读取一个文件。`~` 前缀与相对路径基于 `cwd`（默认宿主 cwd）解析；图片返回 base64 data URL。 |
+| `statFile` | `path, cwd?` | `{ path, exists, kind?, mtimeMs?, size? }` | 探测一个路径的存在性与元数据（shell 产物校验器）；目标缺失或不可解析时返回 `exists: false` 而非抛错。 |
 
 会话状态为 `{ kind: 'running' }` 或 `{ kind: 'exited', exitCode, signal }`。完整的 TypeScript 词汇位于 `src/types.ts`，并通过包入口 `./types` 重新导出。
 
