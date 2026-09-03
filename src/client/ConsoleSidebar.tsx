@@ -2,8 +2,9 @@
  * Right-side file viewer: the details-column entry for dsh-devpanel. Lists the
  * files the current session's AI output touched — write/edit tool calls and
  * diffs, PLUS files created or modified by shell commands (paths extracted
- * from terminal-card commands and their output, verified against the host
- * filesystem) — and shows the selected file's content in the browser through
+ * from the shell tools' model-facing command arguments and their captured
+ * result content, verified against the host filesystem) — and shows the
+ * selected file's content in the browser through
  * the terminalPanel readFile Remote. Renders inside the harness layout's
  * right details column (inline, non-floating, squeezes the center column) and
  * is driven by the shared store; while closed it renders nothing but stays
@@ -103,19 +104,37 @@ function pathFromArgs(argsRaw: string): string | null {
 const WRITE_EDIT_TOOLS = new Set(['write', 'edit'])
 
 /**
- * Visit every materialized tool-call block of the Chat target — each root
- * from the Chat node store (the authoritative materialized nodes) plus each
- * nested subCall in dispatch order.
+ * Visit every tool-call root the Chat target exposes — each materialized
+ * `tool-call` row of the Chat node store (a running or settled root) plus
+ * each flat `tool-result` row of the legacy compatibility projection the
+ * store rows do not cover — and walk nested subCalls in dispatch order.
+ * callId de-duplicates blocks that appear both nested under a root and as
+ * their own projected row.
  * @param snapshot - the Chat snapshot (via the current Conversation view).
  * @param visit - per-block visitor.
  */
 function forEachToolBlock(snapshot: ChatSnapshot | undefined, visit: (block: ToolCallBlock) => void): void {
-  for (const node of snapshot?.nodes.values() ?? []) {
+  if (snapshot === undefined) return
+  const visited = new Set<string>()
+  const walk = (block: ToolCallBlock): void => {
+    if (visited.has(block.callId)) return
+    visited.add(block.callId)
+    visit(block)
+    for (const child of block.subCalls) walk(child)
+  }
+  for (const node of snapshot.nodes.values()) {
     if (node.kind !== 'tool-call') continue
     // The ChatNodeDataMap row for 'tool-call' lives in ui-chat's declaration
     // merging; narrow the union here.
     const root = (node as { data: { root: ToolCallBlock } }).data.root
-    visit(root)
+    walk(root)
+  }
+  for (const node of snapshot.legacy.nodes) {
+    // Settled tool rows only: a running call has no legacy projection, and
+    // the recursion above already visited roots (and nested children) that
+    // the store materialized.
+    if (node.kind !== 'tool-result') continue
+    walk(node)
   }
 }
 
@@ -132,7 +151,7 @@ function forEachToolBlock(snapshot: ChatSnapshot | undefined, visit: (block: Too
  * @param snapshot - the current Chat snapshot.
  * @returns the de-duplicated artifact list and per-file hunk history.
  */
-function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArtifacts {
+export function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArtifacts {
   const seen = new Set<string>()
   const files: FileEntry[] = []
   const history = new Map<string, DiffHunk[]>()
@@ -166,15 +185,16 @@ function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArtifacts 
       // names count, so a read call's path never leaks into the artifact list.
       const fromArgs = pathFromArgs(raw)
       if (fromArgs !== null) record({ path: fromArgs, oldText: null, newText: '' })
+      // A settled mutation returns hunks in its result content: the edit tool
+      // (and family) names the file(s) it changed. Non-mutation tools (bash
+      // and friends) never enter the artifact list, whatever their result text
+      // says — a shell tool's single-line notice is NOT a file path.
+      const settle = 'content' in block ? block.content : undefined
+      const diffs = mutationDiffsFrom(settle)
+      if (diffs !== undefined) absorb(diffs)
     }
-    // A settled mutation returns hunks in its result content: the edit tool
-    // (and family) names the file(s) it changed.
-    const settle = 'content' in block ? block.content : undefined
-    const diffs = mutationDiffsFrom(settle)
-    if (diffs !== undefined) absorb(diffs)
-    // Child calls owned by this call, in dispatch order.
-    for (const child of block.subCalls) visitBlock(child)
   }
+  // Traversal (roots + nested subCalls) lives in forEachToolBlock.
   forEachToolBlock(snapshot, visitBlock)
   return { files, history }
 }
@@ -183,8 +203,11 @@ function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArtifacts 
  * Extract applied diff hunks from one settled tool-result block. The harness
  * no longer attaches a `diff` result view to the node, so the plugin parses
  * the model-facing text envelope the mutation tools emit: a verbatim patch
- * when the result is a unified diff, otherwise a `path` argument fallback
- * that names a single changed file.
+ * when the result is a unified diff, otherwise a bare-text fallback that
+ * names a single changed file — but ONLY when the text is the mutation
+ * envelope ("The file X has been created/updated."). Arbitrary single-line
+ * results (a shell tool's todo notice, echoed prose) are not file paths and
+ * are ignored.
  * @param content - the settled tool result's content blocks.
  * @returns the applied hunks, or undefined when the result carries none.
  */
@@ -196,9 +219,11 @@ function mutationDiffsFrom(content: readonly ContentBlock[] | undefined): DiffHu
   if (text.startsWith('--- ') && text.includes('\n+++ ')) {
     return hunksFromPatch(text)
   }
+  // The envelope must actually match — never fall through with arbitrary text.
+  if (!/^The file .* has been (?:created|updated)\.?\s*$/.test(text)) return undefined
   const raw = text.replace(/^The file .* has been (?:created|updated)\.?\s*/i, '').trim()
   const path = pathFromArgs(JSON.stringify({ path: raw }))
-  if (path === null) return undefined
+  if (path === null || path === '') return undefined
   return [{ path, oldText: null, newText: '' }]
 }
 
@@ -260,6 +285,8 @@ interface ShellCandidate {
   base: string | undefined
   /** Host-clock epoch ms of the producing tool call (the mtime window's floor). */
   time: number
+  /** Host-clock epoch ms of the settled result (the mtime window's ceiling). */
+  end?: number
 }
 
 /** Slack (ms) around the tool-call window, absorbing mtime/clock granularity. */
@@ -319,6 +346,96 @@ function shellCommandFrom(args: Record<string, unknown> | null): string | undefi
   return typeof command === 'string' ? command : undefined
 }
 
+/**
+ * Shell programs that only READ files: their path mentions are sources, never
+ * products. A bash call running one of these (cat/head/grep of a log) must not
+ * register the files it merely read — the mtime window alone cannot tell a
+ * quoted-but-fresh file (a log some other process keeps appending) from a real
+ * command product.
+ */
+const READER_COMMANDS = new Set([
+  'cat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'awk', 'sed',
+  'find', 'ls', 'stat', 'file', 'du', 'df', 'wc', 'echo', 'printf', 'env',
+  'export', 'type', 'which', 'whereis', 'whoami', 'id', 'pwd', 'uname', 'date',
+  'man', 'diff', 'cmp', 'strings', 'md5', 'md5sum', 'shasum', 'sha1sum',
+  'sha256sum', 'sort', 'uniq', 'cut', 'tr', 'jq',
+  // PowerShell read aliases (lower-cased).
+  'get-content', 'select-string', 'get-item', 'get-childitem', 'write-output',
+])
+
+/** Strip leading `cd <dir> &&|;` chains (bounded) and common wrappers. */
+function unwrapShellPrefix(command: string): string {
+  let text = command.trim()
+  for (let depth = 0; depth < 3; depth += 1) {
+    const cd = /^cd\s+[^\s&;]+(\s*&&|\s*;)\s*/.exec(text)
+    if (cd !== null) { text = text.slice(cd[0].length).trim(); continue }
+    const wrapper = /^(sudo|env|time|nohup|command|builtin)\s+/.exec(text)
+    if (wrapper !== null) { text = text.slice(wrapper[0].length).trim(); continue }
+    break
+  }
+  return text
+}
+
+/** The leading program of a shell command (first word, lower-cased). */
+function shellProgram(command: string): string {
+  const first = unwrapShellPrefix(command).split(/\s+/)[0] ?? ''
+  return first.replace(/^['"]|['"]$/g, '').toLowerCase()
+}
+
+/** Whether the command writes files in place (`sed -i`, `perl -i`): its file
+ *  arguments ARE the products. */
+function hasInPlaceFlag(text: string): boolean {
+  return /\s-i(?:$|\s)|\s--in-place(?:\s|=)/.test(text)
+}
+
+/** Whether the command text carries an output redirection or a `tee`. */
+function hasWriteSide(text: string): boolean {
+  return /(?:^|[;&|\s(])(?:>>|[12&]?>)|(?:^|[;&|\s(])>|\btee\b/.test(text)
+}
+
+/**
+ * The write policy for one shell command line.
+ * - 'none': a pure reader (no redirection) — it produced nothing; drop every
+ *   candidate, including the paths its echoed output merely quotes.
+ * - 'targets': a reader with a redirection/`tee` write side — only the write
+ *   targets can be products.
+ * - 'all': a producer or unknown program — scan the command and its output.
+ */
+export function commandWritePolicy(command: string): 'none' | 'targets' | 'all' {
+  if (hasInPlaceFlag(command)) return 'all'
+  if (READER_COMMANDS.has(shellProgram(command))) {
+    return hasWriteSide(command) ? 'targets' : 'none'
+  }
+  return 'all'
+}
+
+/**
+ * Pull only the WRITE-side path tokens out of a command line: the targets of
+ * redirections (`>`, `>>`, `1>`, `2>`, `&>`) and of `tee`. Read sources
+ * (`cat a > b` names `a` too) are left out.
+ * @param text - the command line.
+ * @returns unique target candidates in first-seen order.
+ */
+export function writeTargetsFrom(text: string): string[] {
+  const found: string[] = []
+  const tokens = text.split(/\s+/)
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i] ?? ''
+    const operator = /^>>|^[12&]?>/.exec(token)
+    // Redirection operators optionally glue their target (`>out.txt`); `tee`
+    // takes its target as the next token.
+    const head = operator !== null ? operator[0].length : token === 'tee' ? token.length : -1
+    if (head < 0) continue
+    const rest = token.slice(head)
+    const target = rest !== '' && rest !== '&1' ? rest : tokens[i + 1]
+    if (target === undefined || target.trim() === '') continue
+    for (const path of pathsFromText(target)) {
+      if (!found.includes(path)) found.push(path)
+    }
+  }
+  return found
+}
+
 /** Settled call head (name + raw args), or null for a running call. */
 function settledHead(block: ToolCallBlock): { name: string; argsRaw: string; callTime: number } | null {
   if (!('call' in block)) return null
@@ -360,8 +477,10 @@ function toolCwd(block: ToolCallBlock): string | undefined {
  * `bash`/`pwsh` tools whose model-facing arguments carry a `command`, plus
  * the command's captured result output. Shell-created binaries
  * (video/audio/archives) surface here, so the media previews become
- * reachable. Read-only commands contribute candidates too — the host-side
- * mtime window check rejects files the command didn't touch.
+ * reachable. Read-only commands (cat/head/grep of a log) produce nothing, so
+ * their file mentions are dropped outright — echoed output only quotes
+ * sources. The host-side existence + mtime window check rejects whatever
+ * still slips through.
  * @param snapshot - the current Chat snapshot.
  * @returns unverified candidates in call-dispatch order.
  */
@@ -381,24 +500,34 @@ export function collectShellCandidates(snapshot: ChatSnapshot | undefined): Shel
       } catch {
         // Mid-stream truncation: rely on the command line alone.
       }
-      // The mtime window floors at the CALL (files land while the command
-      // runs); a settled result falls back to its own time when truncation
-      // cut the paired call.
+      // The mtime window spans CALL to RESULT: files land while the command
+      // runs, and the result bounds when it finished. A still-running call has
+      // no ceiling yet; a settled result whose paired call was window-truncated
+      // falls back to its own time for the floor.
       const time = settled?.callTime ?? block.time
+      const end = settled === null ? undefined : block.time
       const base = toolCwd(block)
-      const texts: string[] = []
       const command = shellCommandFrom(args)
-      if (command !== undefined) texts.push(command)
-      texts.push(...resultTexts(block))
-      for (const text of texts) {
-        for (const path of pathsFromText(text)) {
-          candidates.push({ path, base, time })
+      const policy = command === undefined ? 'all' : commandWritePolicy(command)
+      if (policy !== 'none') {
+        const push = (path: string): void => {
+          candidates.push({ path, base, time, ...(end === undefined ? {} : { end }) })
+        }
+        if (command !== undefined) {
+          const fromCommand = policy === 'targets' ? writeTargetsFrom(command) : pathsFromText(command)
+          for (const path of fromCommand) push(path)
+        }
+        // A reader's captured output only echoes its sources; the write side of
+        // a targets-only command was already collected above.
+        if (policy === 'all') {
+          for (const text of resultTexts(block)) {
+            for (const path of pathsFromText(text)) push(path)
+          }
         }
       }
     }
-    // Child calls owned by this call, in dispatch order.
-    for (const child of block.subCalls) visitBlock(child)
   }
+  // Traversal (roots + nested subCalls) lives in forEachToolBlock.
   forEachToolBlock(snapshot, visitBlock)
   return candidates
 }
@@ -486,7 +615,12 @@ function formatSize(bytes: number): string {
  * useState resets on every switch — the state survives here and is restored
  * when the session's sidebar opens again.
  */
-const sidebarSelections = new Map<string, { active: string | null; browse: boolean; expanded: string[] }>()
+const sidebarSelections = new Map<string, {
+  active: string | null
+  browse: boolean
+  expanded: string[]
+  dismissed: string[]
+}>()
 
 /**
  * Render one read file: media (image/pdf/audio/video) natively, markdown
@@ -688,6 +822,12 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
   const [expanded, setExpanded] = useState(
     () => new Set(sessionId === undefined ? [] : sidebarSelections.get(sessionId)?.expanded ?? []),
   )
+  // Shell-derived entries the user removed from this session's list (noise such
+  // as redirect-dropped transcripts); like the other panel state, dismissals
+  // survive remounts through sidebarSelections.
+  const [dismissed, setDismissed] = useState(
+    () => new Set(sessionId === undefined ? [] : sidebarSelections.get(sessionId)?.dismissed ?? []),
+  )
 
   // Chat snapshot: the Session-standard `useConversation` hands the
   // Conversation assembly, whose `chat` target owns the materialized nodes.
@@ -709,10 +849,13 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
   const rootPath = sessionCwd === undefined || sessionCwd === '' ? '~' : sessionCwd
 
   // Verify shell-artifact candidates against the host filesystem: a candidate
-  // enters the list only when the file EXISTS (as a file) and its mtime is not
-  // older than the producing tool call — the false-positive filter that lets
-  // the aggressive text extraction name only real command products. Verdicts
-  // cache per candidate; each accepted probe resolves to an absolute host path.
+  // enters the list only when the file EXISTS (as a file) and its mtime falls
+  // INSIDE the producing tool call's window — between the call and its settled
+  // result (± slack) — the false-positive filter that lets the aggressive text
+  // extraction name only real command products. Files some other process keeps
+  // touching AFTER the command finished (session logs, todo state) fall
+  // outside the ceiling and never enter the list. Verdicts cache per
+  // candidate; each accepted probe resolves to an absolute host path.
   useEffect(() => {
     if (!sidebarOpen) return
     const verdicts = verdictsRef.current
@@ -728,7 +871,9 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
       const accepted = res.ok
         && res.value.exists
         && res.value.kind === 'file'
-        && (res.value.mtimeMs === undefined || res.value.mtimeMs >= candidate.time - MTIME_WINDOW_SLACK_MS)
+        && (res.value.mtimeMs === undefined
+          || (res.value.mtimeMs >= candidate.time - MTIME_WINDOW_SLACK_MS
+            && (candidate.end === undefined || res.value.mtimeMs <= candidate.end + MTIME_WINDOW_SLACK_MS)))
       verdicts.set(key, accepted)
       return accepted ? res.value : null
     })).then((stats) => {
@@ -748,11 +893,17 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
   }, [shellCandidates, sessionCwd, sidebarOpen, terminalPanel])
 
   // The displayed list: write/edit artifacts first, then verified shell files
-  // the artifacts don't already name.
+  // the artifacts don't already name. Only SHELL-only entries can be dismissed
+  // — a path write/edit also produced is a certain artifact, not noise.
   const files = [...editFiles]
+  const shellOnly = new Set<string>()
   for (const file of shellFiles) {
-    if (!files.some(entry => entry.path === file.path)) files.push(file)
+    if (!files.some(entry => entry.path === file.path)) {
+      files.push(file)
+      shellOnly.add(file.path)
+    }
   }
+  const visibleFiles = files.filter(file => !dismissed.has(file.path))
 
   // Fetch one directory's listing into the cache (idempotent; the node shows a
   // loading/error state from the cache entry while it settles).
@@ -774,6 +925,16 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
     })
   }
   const openFile = (path: string): void => { setActive(path) }
+  // Hide one shell-derived entry from this session's list (the file itself is
+  // not touched); a dismissed active file closes its preview.
+  const dismissFile = (path: string): void => {
+    setDismissed(prev => {
+      const next = new Set(prev)
+      next.add(path)
+      return next
+    })
+    if (active === path) { setActive(null); setTailOn(false) }
+  }
 
   // Write "cd <dir> && cat <file>" into the terminal tab the dialog currently
   // shows (the shared store's activeTerminalId), so the AI's output file can
@@ -871,8 +1032,10 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
   // expanded directories) so a later remount (session switch) restores it.
   useEffect(() => {
     if (sessionId === undefined) return
-    sidebarSelections.set(sessionId, { active, browse, expanded: [...expanded] })
-  }, [sessionId, active, browse, expanded])
+    sidebarSelections.set(sessionId, {
+      active, browse, expanded: [...expanded], dismissed: [...dismissed],
+    })
+  }, [sessionId, active, browse, expanded, dismissed])
 
   // Load listings for the restored expanded directories so the tree renders
   // their children instead of hanging on the loading placeholder.
@@ -934,19 +1097,31 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
               depth={0}
             />
           )
-          : files.length === 0
+          : visibleFiles.length === 0
             ? <div className="dsh-devpanel-empty">{t('sidebar.empty')}</div>
-            : files.map((file) => (
-              <button
-                key={file.path}
-                type="button"
-                className="dsh-devpanel-file"
-                data-active={file.path === active || undefined}
-                onClick={() => { setActive(file.path) }}
-                title={file.path}
-              >
-                {file.name}
-              </button>
+            : visibleFiles.map((file) => (
+              <div key={file.path} className="dsh-devpanel-file-row">
+                <button
+                  type="button"
+                  className="dsh-devpanel-file"
+                  data-active={file.path === active || undefined}
+                  onClick={() => { setActive(file.path) }}
+                  title={file.path}
+                >
+                  {file.name}
+                </button>
+                {shellOnly.has(file.path) && (
+                  <button
+                    type="button"
+                    className="dsh-devpanel-file-dismiss"
+                    aria-label={t('sidebar.dismiss')}
+                    title={t('sidebar.dismiss')}
+                    onClick={() => { dismissFile(file.path) }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             ))}
       </div>
       <div className="dsh-devpanel-file-view">

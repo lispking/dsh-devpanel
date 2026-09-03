@@ -37,6 +37,7 @@ export type ConsoleKey =
   | 'sidebar.browse.error'
   | 'sidebar.browse.empty'
   | 'sidebar.enterDir'
+  | 'sidebar.dismiss'
   | 'dialog.title'
   | 'dialog.close'
   | 'dialog.newTab'
@@ -161,6 +162,7 @@ export const zh: Record<ConsoleKey, string> = {
   'sidebar.browse.error': '无法读取目录',
   'sidebar.browse.empty': '空目录',
   'sidebar.enterDir': '在该目录打开终端',
+  'sidebar.dismiss': '从列表中移除（不影响文件本身）',
   'dialog.title': '终端',
   'dialog.close': '关闭',
   'dialog.newTab': '新建终端',
@@ -279,6 +281,7 @@ export const en: Record<ConsoleKey, string> = {
   'sidebar.browse.error': 'Failed to read directory',
   'sidebar.browse.empty': 'Empty directory',
   'sidebar.enterDir': 'Open terminal in this directory',
+  'sidebar.dismiss': 'Remove from list (file itself is kept)',
   'dialog.title': 'Terminal',
   'dialog.close': 'Close',
   'dialog.newTab': 'New terminal',

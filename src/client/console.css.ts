@@ -87,15 +87,21 @@ export const CONSOLE_CSS = `
   color: var(--dsw-alias-label-primary, #111827);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
-/* Directory tree: indented rows with a caret, nested inside .dsh-devpanel-files. */
+/* Directory tree: indented rows with a caret, nested inside .dsh-devpanel-files.
+   The tree and its rows are pinned to their natural height (flex: none): in a
+   scrollable flex column the default flex-shrink would squeeze every row into
+   the pane's box, so a long tree would overlap instead of overflowing into a
+   scrollbar. */
 .dsh-devpanel-tree {
   display: flex;
   flex-direction: column;
+  flex: none;
 }
 .dsh-devpanel-tree-row {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: none;
   width: 100%;
   padding: 2px 8px;
   padding-left: calc(8px + var(--dsh-tree-depth, 0) * 14px);
@@ -816,13 +822,30 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   flex: none;
   max-height: 160px;
   overflow-y: auto;
+  /* Rows below are flex: none, so a long list genuinely overflows this pane
+     and the thin themed scrollbar shows here instead of the engine default. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 128, 0.4) transparent;
   padding: 6px 8px;
   border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+.dsh-devpanel-files::-webkit-scrollbar {
+  width: 6px;
+}
+.dsh-devpanel-files::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dsh-devpanel-files::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.4);
+  border-radius: 999px;
+}
 .dsh-devpanel-file {
+  /* Keep each entry at its natural height so the list scrolls instead of
+     compressing entries into the 160px pane (rows would overlap). */
+  flex: none;
   text-align: left;
   padding: 3px 8px;
   border: none;
@@ -841,6 +864,33 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 .dsh-devpanel-file[data-active] {
   background: var(--dsw-alias-bg-layer-3, #f3f4f6);
   color: var(--dsw-alias-state-business-primary, #2563eb);
+}
+/* Each list row wraps the select button plus an optional dismiss × for
+   shell-derived entries; the wrapper keeps the row's natural height and the
+   select button shrinks (min-width: 0) so its ellipsis stays inside the row. */
+.dsh-devpanel-file-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.dsh-devpanel-file-row .dsh-devpanel-file {
+  flex: 1;
+  min-width: 0;
+}
+.dsh-devpanel-file-dismiss {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  font: inherit;
+  cursor: pointer;
+}
+.dsh-devpanel-file-dismiss:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsh-term-danger, #f26d78);
 }
 .dsh-devpanel-file-view {
   flex: 1;
@@ -952,8 +1002,24 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   overflow-y: auto;
   padding: 8px 10px;
   background: var(--dsh-term-bg, #1b1b1f);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.dsh-devpanel-tail::-webkit-scrollbar {
+  width: 6px;
+}
+.dsh-devpanel-tail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dsh-devpanel-tail::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
 }
 .dsh-devpanel-tail-content {
+  /* Pin the log body to its natural height: in this scrollable flex column the
+     default flex-shrink would compress a long log into the pane's box and cut
+     off the later lines instead of letting the pane scroll through them. */
+  flex: none;
   font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: var(--dsh-term-fg, #e4e4e7);
   white-space: pre-wrap;
@@ -971,6 +1037,7 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
   padding: 8px 12px;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   color: var(--dsw-alias-label-primary, #111827);
   font: inherit;
 }
