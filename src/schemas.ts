@@ -90,6 +90,15 @@ export const listDirResultSchema = z.object({
   entries: z.array(dirEntrySchema),
 })
 
+/** Stat result: existence plus mtime/size metadata (absent when missing). */
+export const statResultSchema = z.object({
+  path: z.string(),
+  exists: z.boolean(),
+  kind: z.union([z.literal('dir'), z.literal('file')]).optional(),
+  mtimeMs: z.number().optional(),
+  size: z.number().optional(),
+})
+
 /** Incremental tail chunk: delta bytes, the next offset, and a gone flag. */
 export const tailResultSchema = z.object({
   path: z.string(),

@@ -30,6 +30,7 @@ import {
   readFileResultSchema,
   listDirResultSchema,
   tailResultSchema,
+  statResultSchema,
   signalSchema,
 } from './schemas.ts'
 import {
@@ -127,6 +128,10 @@ export const TYPERT: TypertContribution = {
       { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:cwd' },
       { name: 'offset', schema: z.number().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:offset' },
     ], tailResultSchema, 'dsh-devpanel#terminalPanel/tail:result', { parameter: 'signal' }),
+    invocation('statFile', [
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/statFile:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/statFile:cwd' },
+    ], statResultSchema, 'dsh-devpanel#terminalPanel/statFile:result', { parameter: 'signal' }),
     // Usage panel (see src/usage.ts) — the AI + terminal dual-dimension stats.
     invocation('snapshot', [
       { name: 'query', schema: usageQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/snapshot:query' },

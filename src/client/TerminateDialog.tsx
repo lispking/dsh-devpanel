@@ -18,9 +18,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type {
-  SnapshotStore, ISessions, SessionListState,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ISessions, SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the 'conversation.composer.dock' SlotMap row (declared by
 // ui-conversation) into this program so PropsRuntime resolves.
@@ -34,6 +33,7 @@ import type {
   ConsoleSignalResult,
   ConsoleSpawnRequest,
   ConsoleSpawnResult,
+  ConsoleStatResult,
   ConsoleTailResult,
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
@@ -55,6 +55,7 @@ export interface TerminalPanelFace {
   readFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
   listDir: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
   tail: (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
+  statFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleStatResult>>
 }
 
 /** Injected business face of the Terminate dialog. */

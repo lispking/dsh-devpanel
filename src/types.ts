@@ -122,6 +122,20 @@ export interface ConsoleListDirResult {
   entries: readonly ConsoleDirEntry[]
 }
 
+/** Existence/metadata probe for one path (the shell-artifact verifier). */
+export interface ConsoleStatResult {
+  /** Resolved absolute path on the host (echoed even when absent). */
+  path: string
+  /** Whether anything exists at the resolved path. */
+  exists: boolean
+  /** Regular file or directory (absent when exists is false). */
+  kind?: 'dir' | 'file'
+  /** Last-modified time in host-clock epoch ms (absent when absent). */
+  mtimeMs?: number
+  /** Byte size for regular files (absent otherwise). */
+  size?: number
+}
+
 /** Incremental tail chunk for the browser log view (seek from an offset). */
 export interface ConsoleTailResult {
   /** Resolved absolute path on the host. */

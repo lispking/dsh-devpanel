@@ -1,23 +1,34 @@
 /**
  * Right-side file viewer: the details-column entry for dsh-devpanel. Lists the
- * files the current session's AI output touched (from tool-call locations and
- * tool-result paths), and shows the selected file's content in the browser
- * through the terminalPanel readFile Remote. Renders inside the harness
- * layout's right details column (inline, non-floating, squeezes the center
- * column) and is driven by the shared store; while closed it renders nothing
- * but stays mounted (slot entries keep identity).
+ * files the current session's AI output touched — write/edit tool calls and
+ * diffs, PLUS files created or modified by shell commands (paths extracted
+ * from terminal-card commands and their output, verified against the host
+ * filesystem) — and shows the selected file's content in the browser through
+ * the terminalPanel readFile Remote. Renders inside the harness layout's
+ * right details column (inline, non-floating, squeezes the center column) and
+ * is driven by the shared store; while closed it renders nothing but stays
+ * mounted (slot entries keep identity).
  * @module dsh-devpanel/client/ConsoleSidebar
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import type {
-  SnapshotStore, ConversationSnapshot, ToolCallBlock,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { CodeBlock, DiffBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the 'details' SlotMap row (declared by ui-layout) into
 // this program so PropsRuntime<'details'> resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the Session-standard props (sessionId, useSession,
+// useSessions) into this program.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the Session-standard `useConversation` (and its snapshot
+// vocabulary) into this program so the sidebar can read the Chat target.
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the Chat target's `useChat` standard prop and the Chat
+// snapshot/node vocabulary (ChatSnapshot, ChatNodeStore rows, ToolCallBlock).
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ChatSnapshot, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { ConsoleListDirResult, ConsoleReadFileResult } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
 import { activeTerminalFor, sidebarOpenFor } from './console-store.ts'
@@ -92,19 +103,36 @@ function pathFromArgs(argsRaw: string): string | null {
 const WRITE_EDIT_TOOLS = new Set(['write', 'edit'])
 
 /**
+ * Visit every materialized tool-call block of the Chat target — each root
+ * from the Chat node store (the authoritative materialized nodes) plus each
+ * nested subCall in dispatch order.
+ * @param snapshot - the Chat snapshot (via the current Conversation view).
+ * @param visit - per-block visitor.
+ */
+function forEachToolBlock(snapshot: ChatSnapshot | undefined, visit: (block: ToolCallBlock) => void): void {
+  for (const node of snapshot?.nodes.values() ?? []) {
+    if (node.kind !== 'tool-call') continue
+    // The ChatNodeDataMap row for 'tool-call' lives in ui-chat's declaration
+    // merging; narrow the union here.
+    const root = (node as { data: { root: ToolCallBlock } }).data.root
+    visit(root)
+  }
+}
+
+/**
  * Extract the file ARTIFACTS a session's nodes produced — the write/edit
- * family only, PLUS the applied hunk history for each file. Reads the internal
- * ChatNodeStore (the authoritative materialized nodes; the legacy top-level
- * `nodes` projection omits tool views), walking every materialized tool-call
- * root and keeping only write/edit signals: pending diff call views, completed
- * diff result views, and the raw-args `path` fallback for write/edit tools
- * without a presenter. Read and search calls are inputs, not products, so they
- * never enter the list. Each diff hunk's `oldText`/`newText` is recorded in
- * first-seen order so the sidebar can render a version diff.
- * @param snapshot - the current conversation snapshot.
+ * family only, PLUS the applied hunk history for each file. Walks every
+ * materialized tool-call root in the Chat target and keeps only write/edit
+ * signals: the raw-args `path` of write/edit calls, and the diff hunks a
+ * settled mutation result carries. The harness no longer rides presentation
+ * views on the nodes, so card intent is derived from the tool NAME and the
+ * model-facing result blocks; read/search calls never enter the list. Each
+ * hunk's `oldText`/`newText` is recorded in first-seen order so the sidebar
+ * can render a version diff.
+ * @param snapshot - the current Chat snapshot.
  * @returns the de-duplicated artifact list and per-file hunk history.
  */
-function collectArtifacts(snapshot: ConversationSnapshot | undefined): SessionArtifacts {
+function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArtifacts {
   const seen = new Set<string>()
   const files: FileEntry[] = []
   const history = new Map<string, DiffHunk[]>()
@@ -131,45 +159,248 @@ function collectArtifacts(snapshot: ConversationSnapshot | undefined): SessionAr
     }
   }
   const visitBlock = (block: ToolCallBlock): void => {
-    // Pending intent: a diff call card names the file(s) it will modify.
-    if (block.callView !== null && block.callView.card === 'diff') {
-      for (const diff of block.callView.diffs) record({ path: diff.path, oldText: diff.oldText, newText: diff.newText })
-    }
-    // Raw-args fallback: write/edit tools carry a path argument; only their
-    // names count, so a read call's path never leaks into the artifact list.
     const raw = 'argsRaw' in block ? block.argsRaw : block.call?.argsRaw ?? ''
     const name = 'name' in block ? block.name : block.call?.name ?? ''
     if (WRITE_EDIT_TOOLS.has(name)) {
+      // Raw-args fallback: write/edit tools carry a path argument; only their
+      // names count, so a read call's path never leaks into the artifact list.
       const fromArgs = pathFromArgs(raw)
       if (fromArgs !== null) record({ path: fromArgs, oldText: null, newText: '' })
     }
-    // Completed result: a diff result view names the file(s) it changed.
-    if ('resultView' in block && block.resultView !== null && block.resultView.card === 'diff') {
-      absorb(block.resultView.diffs as DiffHunk[] | undefined)
+    // A settled mutation returns hunks in its result content: the edit tool
+    // (and family) names the file(s) it changed.
+    const settle = 'content' in block ? block.content : undefined
+    const diffs = mutationDiffsFrom(settle)
+    if (diffs !== undefined) absorb(diffs)
+    // Child calls owned by this call, in dispatch order.
+    for (const child of block.subCalls) visitBlock(child)
+  }
+  forEachToolBlock(snapshot, visitBlock)
+  return { files, history }
+}
+
+/**
+ * Extract applied diff hunks from one settled tool-result block. The harness
+ * no longer attaches a `diff` result view to the node, so the plugin parses
+ * the model-facing text envelope the mutation tools emit: a verbatim patch
+ * when the result is a unified diff, otherwise a `path` argument fallback
+ * that names a single changed file.
+ * @param content - the settled tool result's content blocks.
+ * @returns the applied hunks, or undefined when the result carries none.
+ */
+function mutationDiffsFrom(content: readonly ContentBlock[] | undefined): DiffHunk[] | undefined {
+  if (content === undefined || content.length !== 1) return undefined
+  const block = content[0]
+  if (block === undefined || block.type !== 'text') return undefined
+  const text = block.text
+  if (text.startsWith('--- ') && text.includes('\n+++ ')) {
+    return hunksFromPatch(text)
+  }
+  const raw = text.replace(/^The file .* has been (?:created|updated)\.?\s*/i, '').trim()
+  const path = pathFromArgs(JSON.stringify({ path: raw }))
+  if (path === null) return undefined
+  return [{ path, oldText: null, newText: '' }]
+}
+
+/**
+ * Convert a unified diff text into per-file hunks. A whole-file create patch
+ * carries no `---`/`+++` headers, so it is treated as one add-side hunk.
+ * @param patch - the result's unified-diff text.
+ * @returns one hunk per changed file.
+ */
+function hunksFromPatch(patch: string): DiffHunk[] {
+  const files: DiffHunk[] = []
+  const lines = patch.split('\n')
+  const delimiters = new Set(['--- ', '+++ ', '@@', 'diff --git '])
+  let current: { path: string; old: string[]; added: string[] } | null = null
+  const flush = (): void => {
+    if (current === null) return
+    files.push({
+      path: current.path,
+      oldText: current.old.length > 0 ? current.old.join('\n') : null,
+      newText: current.added.join('\n'),
+    })
+    current = null
+  }
+  for (const line of lines) {
+    if (line.startsWith('--- ')) {
+      flush()
+      const target = line.slice(4).replace(/\s+\(revision.*\)$/, '')
+      // A '/dev/null' old side is a whole-file create: the trailing '+++ ' line names it.
+      current = { path: target === '/dev/null' ? '' : target, old: [], added: [] }
+      continue
+    }
+    if (line.startsWith('+++ ')) {
+      const target = line.slice(4).replace(/\s+\(revision.*\)$/, '')
+      if (target !== '/dev/null' && current !== null) current.path = target
+      continue
+    }
+    if (current === null) {
+      // Whole-file create: no hunk header — the sole text names the file.
+      if (!delimiters.has(line.trimStart().slice(0, 4)) && line.includes('.') && !line.includes(' ')) {
+        current = { path: line.trim(), old: [], added: [] }
+      }
+      continue
+    }
+    if (line.startsWith('@@')) continue
+    if (line.startsWith('+') && !line.startsWith('+++')) current.added.push(line.slice(1))
+    else if (line.startsWith('-') && !line.startsWith('---')) current.old.push(line.slice(1))
+    else if (line === '\\ No newline at end of file') continue
+    else { current.old.push(line); current.added.push(line) }
+  }
+  flush()
+  return files.filter(hunk => hunk.path !== '')
+}
+
+/** A file path mentioned by a shell command or its output, not yet verified. */
+interface ShellCandidate {
+  /** The path exactly as it appeared; relative paths resolve against `base`. */
+  path: string
+  /** Base directory for a relative path; undefined means the session workspace. */
+  base: string | undefined
+  /** Host-clock epoch ms of the producing tool call (the mtime window's floor). */
+  time: number
+}
+
+/** Slack (ms) around the tool-call window, absorbing mtime/clock granularity. */
+const MTIME_WINDOW_SLACK_MS = 2_000
+
+/**
+ * Whether a tool-card cwd is already absolute (`/…`, `~…`, a UNC path, or a
+ * Windows drive). A RELATIVE card cwd is resolved by the UI bridge against the
+ * session workspace, so it resolves to the same base the session supplies.
+ */
+function isAbsolutePathish(path: string): boolean {
+  return path.startsWith('/') || path.startsWith('~') || path.startsWith('\\')
+    || /^[A-Za-z]:[\\/]/.test(path)
+}
+
+/**
+ * Pull file-path candidates out of one shell command or its captured output.
+ * Tokens are split on whitespace and shell punctuation; flags, URLs, globs,
+ * and shell/environment expansions are dropped; a survivor must carry a path
+ * separator or a plausible file extension. Extraction is deliberately
+ * aggressive — every candidate is later verified against the host filesystem
+ * (existence + mtime window) before it reaches the artifact list.
+ * @param text - the command line or the command output to scan.
+ * @returns unique candidate paths in first-seen order.
+ */
+export function pathsFromText(text: string): string[] {
+  const found: string[] = []
+  for (const raw of text.split(/[\s'"`()[\]{};,|<>&]+/)) {
+    let token = raw
+    // A flag's inline value stays a candidate: --output=clip.mp4 -> clip.mp4.
+    if (token.startsWith('-')) {
+      const eq = token.indexOf('=')
+      if (eq <= 0) continue
+      token = token.slice(eq + 1)
+    }
+    // Skip URLs, globs, and shell/environment expansions outright.
+    if (token === '' || token.includes('://') || /[*?$%]/.test(token)) continue
+    // Trailing sentence punctuation is not part of the path.
+    token = token.replace(/[.,:;!?]+$/, '')
+    // A trailing separator names a directory, not a file.
+    if (token === '' || /[\\/]$/.test(token)) continue
+    const dot = token.lastIndexOf('.')
+    const hasExt = dot > 0 && /^[A-Za-z][A-Za-z0-9]{0,11}$/.test(token.slice(dot + 1))
+    if (!/[\\/]/.test(token) && !hasExt) continue
+    if (!found.includes(token)) found.push(token)
+  }
+  return found
+}
+
+/** Tool names that RUN a foreground shell command — shell-artifact producers. */
+const SHELL_TOOLS = new Set(['bash', 'pwsh'])
+
+/** Shell tools whose command comes from a `command` argument (bash/pwsh). */
+function shellCommandFrom(args: Record<string, unknown> | null): string | undefined {
+  if (args === null) return undefined
+  const command = args.command
+  return typeof command === 'string' ? command : undefined
+}
+
+/** Settled call head (name + raw args), or null for a running call. */
+function settledHead(block: ToolCallBlock): { name: string; argsRaw: string; callTime: number } | null {
+  if (!('call' in block)) return null
+  const call = block.call
+  if (call === null) return null
+  const time = block.callTime ?? block.time
+  return { name: call.name, argsRaw: call.argsRaw, callTime: time }
+}
+
+/** All text blocks of a settled result's content. */
+function resultTexts(block: ToolCallBlock): string[] {
+  if (!('content' in block)) return []
+  const texts: string[] = []
+  for (const part of block.content) {
+    if (part.type === 'text') texts.push(part.text)
+  }
+  return texts
+}
+
+/** The `cwd` the tool itself declares (bash runs under the workspace by default). */
+function toolCwd(block: ToolCallBlock): string | undefined {
+  if (!('call' in block)) return undefined
+  const call = block.call
+  if (call === null) return undefined
+  try {
+    const args = JSON.parse(call.argsRaw) as unknown
+    if (typeof args === 'object' && args !== null) {
+      const cwd = (args as Record<string, unknown>).cwd
+      if (typeof cwd === 'string' && isAbsolutePathish(cwd)) return cwd
+    }
+  } catch {
+    // Malformed args: fall through to the session workspace.
+  }
+  return undefined
+}
+
+/**
+ * Collect file-path candidates from the session's shell tool calls — the
+ * `bash`/`pwsh` tools whose model-facing arguments carry a `command`, plus
+ * the command's captured result output. Shell-created binaries
+ * (video/audio/archives) surface here, so the media previews become
+ * reachable. Read-only commands contribute candidates too — the host-side
+ * mtime window check rejects files the command didn't touch.
+ * @param snapshot - the current Chat snapshot.
+ * @returns unverified candidates in call-dispatch order.
+ */
+export function collectShellCandidates(snapshot: ChatSnapshot | undefined): ShellCandidate[] {
+  const candidates: ShellCandidate[] = []
+  const visitBlock = (block: ToolCallBlock): void => {
+    const runningName = !('call' in block) ? block.name : null
+    const runningRaw = !('call' in block) ? block.argsRaw : null
+    const settled = settledHead(block)
+    const name = settled?.name ?? runningName ?? ''
+    const raw = settled?.argsRaw ?? runningRaw ?? ''
+    if (SHELL_TOOLS.has(name)) {
+      let args: Record<string, unknown> | null = null
+      try {
+        const parsed = JSON.parse(raw) as unknown
+        if (typeof parsed === 'object' && parsed !== null) args = parsed as Record<string, unknown>
+      } catch {
+        // Mid-stream truncation: rely on the command line alone.
+      }
+      // The mtime window floors at the CALL (files land while the command
+      // runs); a settled result falls back to its own time when truncation
+      // cut the paired call.
+      const time = settled?.callTime ?? block.time
+      const base = toolCwd(block)
+      const texts: string[] = []
+      const command = shellCommandFrom(args)
+      if (command !== undefined) texts.push(command)
+      texts.push(...resultTexts(block))
+      for (const text of texts) {
+        for (const path of pathsFromText(text)) {
+          candidates.push({ path, base, time })
+        }
+      }
     }
     // Child calls owned by this call, in dispatch order.
     for (const child of block.subCalls) visitBlock(child)
   }
-  for (const node of snapshot?.chat.nodes.values() ?? []) {
-    if (node.kind !== 'tool-call') continue
-    // The ChatNodeDataMap row for 'tool-call' lives in ui-conversation's
-    // declaration merging; the runtime sees it as unknown, so narrow it here.
-    const root = (node as { data: { root: ToolCallBlock } }).data.root
-    visitBlock(root)
-  }
-  // Legacy projection as a final net (pre-chat-definition sessions): the
-  // top-level nodes still carry tool-result views when materialized there.
-  for (const node of snapshot?.nodes ?? []) {
-    if (node.kind !== 'tool-result') continue
-    if (node.callView !== null && node.callView.card === 'diff') {
-      for (const diff of node.callView.diffs) record({ path: diff.path, oldText: diff.oldText, newText: diff.newText })
-    }
-    const resultView = node.resultView
-    if (resultView !== null && resultView.card === 'diff') {
-      absorb(resultView.diffs as DiffHunk[] | undefined)
-    }
-  }
-  return { files, history }
+  forEachToolBlock(snapshot, visitBlock)
+  return candidates
 }
 
 /** Single-quote-shell quote a path so spaces/globs stay literal. */
@@ -303,7 +534,11 @@ function FileBody({ result, t }: { result: ConsoleReadFileResult; t: (key: Conso
   if (ext === 'md' || ext === 'mdx') {
     return (
       <div className="dsh-devpanel-file-markdown">
-        <MarkdownText text={result.content} fileMentions={undefined} />
+        <MarkdownText
+          text={result.content}
+          fileMentions={undefined}
+          labels={{ code: { copyLabel: t('sidebar.copy'), copiedLabel: t('sidebar.copied') }, footnotes: '' }}
+        />
       </div>
     )
   }
@@ -311,7 +546,7 @@ function FileBody({ result, t }: { result: ConsoleReadFileResult; t: (key: Conso
   if (lang !== undefined) {
     return (
       <div className="dsh-devpanel-file-code">
-        <CodeBlock code={result.content} lang={lang} />
+        <CodeBlock code={result.content} lang={lang} copyLabel={t('sidebar.copy')} copiedLabel={t('sidebar.copied')} />
       </div>
     )
   }
@@ -420,7 +655,7 @@ function DirNode({ path, name, depth, terminalPanel, sessionCwd, cache, loadDir,
  * @param props - details standard kit (useSession), locale seat, injected face.
  * @returns the viewer while open, null while closed.
  */
-export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails, useSession, useSessions, sessionId, t }: ConsoleSidebarProps) {
+export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails, useConversation, useSessions, sessionId, t }: ConsoleSidebarProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   // This session's own panel flags; each chat session remembers its own state.
   const sidebarOpen = sidebarOpenFor(state, sessionId)
@@ -454,13 +689,70 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
     () => new Set(sessionId === undefined ? [] : sidebarSelections.get(sessionId)?.expanded ?? []),
   )
 
-  const snapshot = useSession((s) => s)
-  const { files, history } = collectArtifacts(snapshot)
+  // Chat snapshot: the Session-standard `useConversation` hands the
+  // Conversation assembly, whose `chat` target owns the materialized nodes.
+  const conversation = useConversation((s) => s)
+  const chat = conversation?.views.get('chat')
+  const snapshot = chat
+  const { files: editFiles, history } = collectArtifacts(snapshot)
+  // Shell-created files, verified through the host (existence + mtime window);
+  // they append after the write/edit artifacts, de-duplicated by path.
+  const [shellFiles, setShellFiles] = useState<FileEntry[]>([])
+  // One verdict per (call time, base, path) candidate, so an unchanged
+  // transcript never re-probes the host filesystem.
+  const verdictsRef = useRef(new Map<string, boolean>())
+  const shellCandidates = useMemo(() => collectShellCandidates(snapshot), [snapshot])
   // The active file's hunk history, or empty when it has no recorded edits.
   const activeHunks = active === null ? undefined : history.get(active)
   // Relative file paths surface against the session's project directory.
   const sessionCwd = useSessions((list) => sessionId === undefined ? undefined : list.byId[sessionId]?.cwd)
   const rootPath = sessionCwd === undefined || sessionCwd === '' ? '~' : sessionCwd
+
+  // Verify shell-artifact candidates against the host filesystem: a candidate
+  // enters the list only when the file EXISTS (as a file) and its mtime is not
+  // older than the producing tool call — the false-positive filter that lets
+  // the aggressive text extraction name only real command products. Verdicts
+  // cache per candidate; each accepted probe resolves to an absolute host path.
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const verdicts = verdictsRef.current
+    const pending = shellCandidates.filter((candidate) => {
+      const key = `${candidate.time}\u0000${candidate.base ?? ''}\u0000${candidate.path}`
+      return !verdicts.has(key)
+    })
+    if (pending.length === 0) return
+    let cancelled = false
+    void Promise.all(pending.map(async (candidate) => {
+      const key = `${candidate.time}\u0000${candidate.base ?? ''}\u0000${candidate.path}`
+      const res = await terminalPanel.statFile(candidate.path, candidate.base ?? sessionCwd)
+      const accepted = res.ok
+        && res.value.exists
+        && res.value.kind === 'file'
+        && (res.value.mtimeMs === undefined || res.value.mtimeMs >= candidate.time - MTIME_WINDOW_SLACK_MS)
+      verdicts.set(key, accepted)
+      return accepted ? res.value : null
+    })).then((stats) => {
+      if (cancelled) return
+      const fresh = stats.filter((stat): stat is NonNullable<typeof stat> => stat !== null)
+      if (fresh.length === 0) return
+      setShellFiles(prev => {
+        const merged = [...prev]
+        for (const stat of fresh) {
+          if (merged.some(file => file.path === stat.path)) continue
+          merged.push({ path: stat.path, name: stat.path.split(/[\\/]/).pop() ?? stat.path })
+        }
+        return merged
+      })
+    })
+    return () => { cancelled = true }
+  }, [shellCandidates, sessionCwd, sidebarOpen, terminalPanel])
+
+  // The displayed list: write/edit artifacts first, then verified shell files
+  // the artifacts don't already name.
+  const files = [...editFiles]
+  for (const file of shellFiles) {
+    if (!files.some(entry => entry.path === file.path)) files.push(file)
+  }
 
   // Fetch one directory's listing into the cache (idempotent; the node shows a
   // loading/error state from the cache entry while it settles).
@@ -727,7 +1019,18 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
                   : diffOn && activeHunks !== undefined && activeHunks.length > 0
                     ? (
                       <div className="dsh-devpanel-file-history">
-                        <DiffBlock diffs={activeHunks} />
+                        <DiffBlock
+                          diffs={activeHunks}
+                          labels={{
+                            copy: t('sidebar.copy'),
+                            copied: t('sidebar.copied'),
+                            collapseAria: t('sidebar.diffCollapseAria'),
+                            expandAria: (hidden) => t('sidebar.diffExpandAria').replace('{count}', String(hidden)),
+                            collapse: t('sidebar.diffCollapse'),
+                            expand: (hidden) => t('sidebar.diffExpand').replace('{count}', String(hidden)),
+                            files: (count) => t('sidebar.diffFiles').replace('{count}', String(count)),
+                          }}
+                        />
                       </div>
                     )
                     : <FileBody result={result} t={t} />}

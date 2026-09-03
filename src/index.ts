@@ -30,6 +30,7 @@ import type {
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
   ConsoleWriteResult,
+  ConsoleStatResult,
   ConsoleTailResult,
 } from './types.ts'
 import {
@@ -501,6 +502,38 @@ export class TerminalPanelService extends TypertRemoteService {
       return { path: target, delta: buffer.toString('utf8'), offset: statInfo.size, gone: false }
     } finally {
       await handle.close()
+    }
+  }
+
+  /**
+   * Probe one path's existence and metadata for the browser file sidebar. The
+   * client extracts file-path candidates from shell commands and their output;
+   * this remote is the false-positive filter — a candidate only enters the
+   * artifact list when it EXISTS on the host and its mtime falls inside the
+   * producing tool call's window. Same path resolution/traversal guard as
+   * readFile, but a missing (or unresolvable) target reports `exists: false`
+   * instead of throwing: the caller probes guesses, not known files.
+   * @param path - absolute path, `~`-prefixed home path, or path relative to `cwd`.
+   * @param cwd - base directory for relative paths; defaults to the host cwd.
+   * @returns existence plus kind/mtime/size for the resolved path.
+   */
+  @Remote
+  async statFile(path: string, cwd?: string): Promise<ConsoleStatResult> {
+    let target: string
+    try {
+      target = this.resolveTarget(path, cwd)
+    } catch {
+      // A candidate that escapes the project root (or is malformed) is simply
+      // not an artifact — report absence rather than failing the whole probe.
+      return { path, exists: false }
+    }
+    try {
+      const info = await stat(target)
+      return info.isDirectory()
+        ? { path: target, exists: true, kind: 'dir', mtimeMs: info.mtimeMs }
+        : { path: target, exists: true, kind: 'file', mtimeMs: info.mtimeMs, size: info.size }
+    } catch {
+      return { path: target, exists: false }
     }
   }
 

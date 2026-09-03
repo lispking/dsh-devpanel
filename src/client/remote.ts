@@ -25,6 +25,7 @@ import type {
   ConsoleSpawnRequest,
   ConsoleSpawnResult,
   ConsoleTailResult,
+  ConsoleStatResult,
   ConsoleTerminalSignal,
   ConsoleTerminateResult,
   ConsoleWriteResult,
@@ -49,6 +50,7 @@ import {
   readFileResultSchema,
   listDirResultSchema,
   tailResultSchema,
+  statResultSchema,
   signalSchema,
 } from '../schemas.ts'
 import {
@@ -144,6 +146,10 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
       { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:cwd' },
       { name: 'offset', schema: z.number().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/tail:offset' },
     ], tailResultSchema, 'dsh-devpanel#terminalPanel/tail:result', { parameter: 'signal' }),
+    descriptor('statFile', [
+      { name: 'path', schema: z.string(), typeSymbol: 'dsh-devpanel#terminalPanel/statFile:path' },
+      { name: 'cwd', schema: z.string().optional(), typeSymbol: 'dsh-devpanel#terminalPanel/statFile:cwd' },
+    ], statResultSchema, 'dsh-devpanel#terminalPanel/statFile:result', { parameter: 'signal' }),
     // Usage panel (see src/usage.ts) — the AI + terminal dual-dimension stats.
     descriptor('snapshot', [
       { name: 'query', schema: usageQuerySchema, typeSymbol: 'dsh-devpanel#usagePanel/snapshot:query' },
@@ -177,6 +183,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     readFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
     listDir: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
     tail: (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
+    statFile: (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleStatResult>>
   }
   interface TypertRemoteNamespace$757361676550616e656c {
     snapshot: (query: UsageQuery, signal?: AbortSignal) => Promise<RemoteResult<UsageSnapshot>>
@@ -196,6 +203,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'terminalPanel/readFile': (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleReadFileResult>>
     'terminalPanel/listDir': (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleListDirResult>>
     'terminalPanel/tail': (path: string, cwd?: string, offset?: number, signal?: AbortSignal) => Promise<RemoteResult<ConsoleTailResult>>
+    'terminalPanel/statFile': (path: string, cwd?: string, signal?: AbortSignal) => Promise<RemoteResult<ConsoleStatResult>>
     'usagePanel/snapshot': (query: UsageQuery, signal?: AbortSignal) => Promise<RemoteResult<UsageSnapshot>>
     'usagePanel/calls': (query: UsageCallsQuery, signal?: AbortSignal) => Promise<RemoteResult<UsageCallsPage>>
     'usagePanel/terminals': (query: UsageTerminalsQuery, signal?: AbortSignal) => Promise<RemoteResult<UsageTerminalsPage>>
@@ -222,4 +230,5 @@ export type {
   ConsoleListDirResult,
   ConsoleDirEntry,
   ConsoleTailResult,
+  ConsoleStatResult,
 } from '../types.ts'

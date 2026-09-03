@@ -22,6 +22,13 @@ export type ConsoleKey =
   | 'sidebar.tailGone'
   | 'sidebar.diff'
   | 'sidebar.diffLabel'
+  | 'sidebar.diffCollapse'
+  | 'sidebar.diffExpand'
+  | 'sidebar.diffCollapseAria'
+  | 'sidebar.diffExpandAria'
+  | 'sidebar.diffFiles'
+  | 'sidebar.copy'
+  | 'sidebar.copied'
   | 'sidebar.user'
   | 'sidebar.modes.aria'
   | 'sidebar.modes.files'
@@ -139,6 +146,13 @@ export const zh: Record<ConsoleKey, string> = {
   'sidebar.tailGone': '（文件已移除或轮转）',
   'sidebar.diff': '查看本次会话对该文件的修改',
   'sidebar.diffLabel': 'diff',
+  'sidebar.diffCollapse': '折叠',
+  'sidebar.diffExpand': '展开',
+  'sidebar.diffCollapseAria': '折叠过长的差异',
+  'sidebar.diffExpandAria': '展开 {count} 行被折叠的差异',
+  'sidebar.diffFiles': '{count} 个文件',
+  'sidebar.copy': '复制',
+  'sidebar.copied': '已复制',
   'sidebar.user': '你',
   'sidebar.modes.aria': '侧边栏显示模式',
   'sidebar.modes.files': '会话文件',
@@ -250,6 +264,13 @@ export const en: Record<ConsoleKey, string> = {
   'sidebar.tailGone': '(file removed or rotated)',
   'sidebar.diff': 'View this session\'s edits to the file',
   'sidebar.diffLabel': 'diff',
+  'sidebar.diffCollapse': 'Collapse',
+  'sidebar.diffExpand': 'Expand',
+  'sidebar.diffCollapseAria': 'Collapse the oversized diff',
+  'sidebar.diffExpandAria': 'Expand {count} collapsed diff lines',
+  'sidebar.diffFiles': '{count} files',
+  'sidebar.copy': 'Copy',
+  'sidebar.copied': 'Copied',
   'sidebar.user': 'You',
   'sidebar.modes.aria': 'Sidebar display mode',
   'sidebar.modes.files': 'Session files',

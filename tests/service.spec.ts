@@ -258,4 +258,36 @@ describe('TerminalPanelService', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('stats a file with mtime/size and reports absence without throwing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-devpanel-'))
+    try {
+      writeFileSync(join(dir, 'b.mp4'), 'x'.repeat(11))
+      mkdirSync(join(dir, 'nested'))
+      const { service } = await mountService()
+
+      // An existing relative file resolves against cwd and carries metadata.
+      const file = await service.statFile('b.mp4', dir)
+      expect(file.exists).toBe(true)
+      expect(file.kind).toBe('file')
+      expect(file.size).toBe(11)
+      expect(typeof file.mtimeMs).toBe('number')
+      expect(file.path).toBe(join(dir, 'b.mp4'))
+
+      // A directory is reported as a dir (never an artifact).
+      const dirStat = await service.statFile('nested', dir)
+      expect(dirStat.exists).toBe(true)
+      expect(dirStat.kind).toBe('dir')
+
+      // A missing candidate reports absence (the caller probes guesses).
+      const missing = await service.statFile('missing.mp4', dir)
+      expect(missing.exists).toBe(false)
+
+      // A candidate that escapes the project root reports absence too.
+      const escape = await service.statFile('../outside.mp4', dir)
+      expect(escape.exists).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
