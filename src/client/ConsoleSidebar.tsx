@@ -16,9 +16,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { CodeBlock, DiffBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-// Type-only: pulls the 'details' SlotMap row (declared by ui-layout) into
-// this program so PropsRuntime<'details'> resolves.
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the 'sidebar.right.pane.tab' SlotMap row (declared by
+// ui-sidebar-right) into this program so PropsRuntime resolves.
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 // Type-only: pulls the Session-standard props (sessionId, useSession,
 // useSessions) into this program.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -32,25 +32,21 @@ import type { ChatSnapshot, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-cha
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { ConsoleListDirResult, ConsoleReadFileResult } from '../types.ts'
 import type { ConsolePanelState } from './console-store.ts'
-import { activeTerminalFor, sidebarOpenFor } from './console-store.ts'
+import { activeTerminalFor } from './console-store.ts'
 import type { TerminalPanelFace } from './TerminateDialog.tsx'
 import { NS, type ConsoleKey } from './locales.ts'
 
 /** Injected business face of the sidebar. */
 export interface ConsoleSidebarInjected {
-  /** Shared open state; the sidebar renders while sidebarOpen is true. */
+  /** Shared open state; the header button renders its pressed state from this. */
   store: SnapshotStore<ConsolePanelState>
   /** The mounted terminalPanel Remote namespace (file content reads). */
   terminalPanel: TerminalPanelFace
-  /** Open the layout's right details column (geometry lives with ctx.layout). */
-  openDetails: () => void
-  /** Close the layout's right details column. */
-  closeDetails: () => void
 }
 
-/** Full component props: details standard kit + locale seat + injected face. */
+/** Full component props: the right-Sidebar tab seat + locale seat + injected face. */
 export type ConsoleSidebarProps =
-  PropsRuntime<'details'>
+  PropsRuntime<'sidebar.right.pane.tab'>
   & PropsLocale<typeof NS>
   & ConsoleSidebarInjected
 
@@ -178,8 +174,8 @@ export function collectArtifacts(snapshot: ChatSnapshot | undefined): SessionArt
     }
   }
   const visitBlock = (block: ToolCallBlock): void => {
-    const raw = 'argsRaw' in block ? block.argsRaw : block.call?.argsRaw ?? ''
-    const name = 'name' in block ? block.name : block.call?.name ?? ''
+    const raw = blockArgsRaw(block)
+    const name = blockName(block)
     if (WRITE_EDIT_TOOLS.has(name)) {
       // Raw-args fallback: write/edit tools carry a path argument; only their
       // names count, so a read call's path never leaks into the artifact list.
@@ -445,6 +441,28 @@ function settledHead(block: ToolCallBlock): { name: string; argsRaw: string; cal
   return { name: call.name, argsRaw: call.argsRaw, callTime: time }
 }
 
+/**
+ * The call's tool name. A settled row keeps its head on `call`; a running call
+ * carries the name directly, whether or not its arguments have been dispatched.
+ * @param block - one tool-call lifecycle value.
+ * @returns the tool name, or '' when a truncated window left the head out.
+ */
+function blockName(block: ToolCallBlock): string {
+  return 'call' in block ? block.call?.name ?? '' : block.name
+}
+
+/**
+ * Model-facing raw arguments. 0.2 splits a running call into `preparing` (named,
+ * arguments not yet visible) and `start` (arguments dispatched), so only the
+ * latter exposes `argsRaw`.
+ * @param block - one tool-call lifecycle value.
+ * @returns the raw arguments, or '' before they are dispatched.
+ */
+function blockArgsRaw(block: ToolCallBlock): string {
+  if ('call' in block) return block.call?.argsRaw ?? ''
+  return block.phase === 'start' ? block.argsRaw : ''
+}
+
 /** All text blocks of a settled result's content. */
 function resultTexts(block: ToolCallBlock): string[] {
   if (!('content' in block)) return []
@@ -488,7 +506,7 @@ export function collectShellCandidates(snapshot: ChatSnapshot | undefined): Shel
   const candidates: ShellCandidate[] = []
   const visitBlock = (block: ToolCallBlock): void => {
     const runningName = !('call' in block) ? block.name : null
-    const runningRaw = !('call' in block) ? block.argsRaw : null
+    const runningRaw = !('call' in block) && block.phase === 'start' ? block.argsRaw : null
     const settled = settledHead(block)
     const name = settled?.name ?? runningName ?? ''
     const raw = settled?.argsRaw ?? runningRaw ?? ''
@@ -789,10 +807,13 @@ function DirNode({ path, name, depth, terminalPanel, sessionCwd, cache, loadDir,
  * @param props - details standard kit (useSession), locale seat, injected face.
  * @returns the viewer while open, null while closed.
  */
-export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails, useConversation, useSessions, sessionId, t }: ConsoleSidebarProps) {
+export function ConsoleSidebar({ store, terminalPanel, useTabInfo, useConversation, useSessions, sessionId, t }: ConsoleSidebarProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
-  // This session's own panel flags; each chat session remembers its own state.
-  const sidebarOpen = sidebarOpenFor(state, sessionId)
+  const { tab } = useTabInfo()
+  // The right Sidebar owns whether this panel is shown: its tab's visibility
+  // replaces the old details-column flag as the gate for the polling effects
+  // below (and makes a tab reopened from the Sidebar's own UI render again).
+  const sidebarOpen = tab.visible
   // The selected file, restored from this session's saved selection (the
   // harness REMOUNTS session-scope slots per session, so a plain useState
   // would reset on every switch).
@@ -1019,15 +1040,6 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
     return () => { controller.abort() }
   }, [sidebarOpen, active, sessionCwd, terminalPanel, t])
 
-  // The harness layout closes the details column on EVERY session switch
-  // (AppFrame's close-on-change effect) and never reopens it on return.
-  // Re-open it whenever this session's sidebar is open — including when the
-  // session prop changes while the flag stays true — so switching back
-  // restores the visible panel instead of leaving a zero-width column.
-  useEffect(() => {
-    if (sidebarOpen) openDetails()
-  }, [sidebarOpen, sessionId, openDetails])
-
   // Record this session's last panel state (file selection, browse mode,
   // expanded directories) so a later remount (session switch) restores it.
   useEffect(() => {
@@ -1081,7 +1093,7 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
             aria-label={t('sidebar.close')}
             onClick={() => {
               if (sessionId !== undefined) store.update(draft => { draft.sidebarOpen[sessionId] = false })
-              closeDetails()
+              tab.actions.close()
             }}
           >
             ×
@@ -1197,13 +1209,15 @@ export function ConsoleSidebar({ store, terminalPanel, openDetails, closeDetails
                         <DiffBlock
                           diffs={activeHunks}
                           labels={{
+                            codeLabel: t('sidebar.codeLabel'),
+                            wrapLabel: t('sidebar.wrapLabel'),
+                            unwrapLabel: t('sidebar.unwrapLabel'),
                             copy: t('sidebar.copy'),
                             copied: t('sidebar.copied'),
                             collapseAria: t('sidebar.diffCollapseAria'),
                             expandAria: (hidden) => t('sidebar.diffExpandAria').replace('{count}', String(hidden)),
                             collapse: t('sidebar.diffCollapse'),
                             expand: (hidden) => t('sidebar.diffExpand').replace('{count}', String(hidden)),
-                            files: (count) => t('sidebar.diffFiles').replace('{count}', String(count)),
                           }}
                         />
                       </div>

@@ -67,6 +67,9 @@ function runningShell(options: {
 }): ToolCallBlock {
   return {
     callId: 'c1',
+    // 0.2 splits a running call into preparing (args not visible) and start
+    // (args dispatched); a still-running shell call with args is the latter.
+    phase: 'start',
     name: options.name ?? 'bash',
     argsRaw: JSON.stringify({ command: options.command }),
     turn: 1,

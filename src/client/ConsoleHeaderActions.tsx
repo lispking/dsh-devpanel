@@ -9,7 +9,7 @@
 import { useSyncExternalStore } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconPanelLeftOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPanelLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the 'conversation.session.header.utilities' SlotMap row
 // (declared by ui-conversation) into this program so PropsRuntime resolves.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -103,7 +103,7 @@ export function ConsoleHeaderActions({ store, openSidebar, closeSidebar, usagePa
           else closeSidebar()
         }}
       >
-        <IconPanelLeftOutline16 />
+        <IconPanelLeftOutlineRegular />
       </button>
       {usagePanel !== undefined && (
         <>

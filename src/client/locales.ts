@@ -26,7 +26,9 @@ export type ConsoleKey =
   | 'sidebar.diffExpand'
   | 'sidebar.diffCollapseAria'
   | 'sidebar.diffExpandAria'
-  | 'sidebar.diffFiles'
+  | 'sidebar.codeLabel'
+  | 'sidebar.wrapLabel'
+  | 'sidebar.unwrapLabel'
   | 'sidebar.copy'
   | 'sidebar.copied'
   | 'sidebar.user'
@@ -151,7 +153,9 @@ export const zh: Record<ConsoleKey, string> = {
   'sidebar.diffExpand': '展开',
   'sidebar.diffCollapseAria': '折叠过长的差异',
   'sidebar.diffExpandAria': '展开 {count} 行被折叠的差异',
-  'sidebar.diffFiles': '{count} 个文件',
+  'sidebar.codeLabel': '代码块',
+  'sidebar.wrapLabel': '自动换行',
+  'sidebar.unwrapLabel': '取消自动换行',
   'sidebar.copy': '复制',
   'sidebar.copied': '已复制',
   'sidebar.user': '你',
@@ -270,7 +274,9 @@ export const en: Record<ConsoleKey, string> = {
   'sidebar.diffExpand': 'Expand',
   'sidebar.diffCollapseAria': 'Collapse the oversized diff',
   'sidebar.diffExpandAria': 'Expand {count} collapsed diff lines',
-  'sidebar.diffFiles': '{count} files',
+  'sidebar.codeLabel': 'Code block',
+  'sidebar.wrapLabel': 'Wrap lines',
+  'sidebar.unwrapLabel': 'Do not wrap lines',
   'sidebar.copy': 'Copy',
   'sidebar.copied': 'Copied',
   'sidebar.user': 'You',

@@ -1,27 +1,29 @@
 /**
  * dsh-devpanel client plugin body: mounts the terminalPanel Remote
  * contribution, registers the console locale, injects the panel stylesheet,
- * and contributes THREE slots — the session-header icon actions (AI-output
- * sidebar toggle + Terminate dialog toggle), the right AI-output sidebar
- * (shell.overlay), and the Terminate dialog docked under the composer
+ * and contributes THREE surfaces — the session-header icon actions (file-tab
+ * + Terminate dialog toggles), a right-Sidebar tab type holding the AI-output
+ * / artifact viewer, and the Terminate dialog docked under the composer
  * (conversation.composer.dock). All registrations share one console store
  * created here, so the header icons and their surfaces agree on open state.
  * All contributions ride ctx effects; plugin unload unmounts the Remote
- * namespace, removes the style tag, and unregisters the slots.
+ * namespace, removes the style tag, and unregisters the slots and tab type.
  * @module dsh-devpanel/client
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the client Context merges this apply body relies on into
 // the program — ctx.locale (client-locale), ctx.remote (api-remotes),
-// ctx.sessions (api-session-controller), ctx.slots (ui-renderer), and
-// ctx.layout (ui-layout).
+// ctx.sessions (api-session-controller), ctx.slots (ui-renderer),
+// ctx.sidebarRight / ctx.sidebarRightTabs (ui-sidebar-right) and
+// ctx.uiSession (ui-session).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { ConsoleHeaderActions } from './ConsoleHeaderActions.tsx'
 import { ConsoleSidebar } from './ConsoleSidebar.tsx'
 import { TerminateDialog, type TerminalPanelFace } from './TerminateDialog.tsx'
@@ -31,8 +33,17 @@ import { installConsoleStyles } from './console.css.ts'
 import { en, NS, zh } from './locales.ts'
 import { TYPERT_REMOTE } from './remote.ts'
 
-/** Required services: the typed Client Remote mount, slot registry, locale, sessions, layout. */
-export const inject = ['remote', 'slots', 'locale', 'sessions', 'layout'] as const
+/**
+ * This implementation's identity in the right Sidebar's tab registry: the key
+ * its body registers under in `sidebar.right.pane.tab`.
+ */
+const DEVPANEL_ID = 'dsh-devpanel'
+
+/** The page kind the header's file-tab button opens. */
+const DEVPANEL_KIND = 'devpanel'
+
+/** Required services: the typed Client Remote mount, slot registry, locale, sessions, and the right Sidebar's tab registry. */
+export const inject = ['remote', 'slots', 'locale', 'sessions', 'sidebarRight', 'sidebarRightTabs', 'uiSession'] as const
 
 /**
  * Client plugin body: mount the terminalPanel Remote, then contribute the
@@ -61,7 +72,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return
       if (event.key !== '`' && event.key !== '~') return
       event.preventDefault()
-      const sessionId = ctx.sessions.list.getSnapshot().current
+      // 0.2 dropped `current` from the Session list snapshot; the renderer
+      // binding source is the live current-session face.
+      const sessionId = ctx.uiSession.adapter.current.getSnapshot().key
       if (sessionId === undefined) return
       store.update(draft => { draft.dialogOpen[sessionId] = !(draft.dialogOpen[sessionId] ?? false) })
     }
@@ -97,29 +110,29 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     inject: () => ({
       store,
       usagePanel,
-      openSidebar: () => { ctx.layout.openDetails() },
-      closeSidebar: () => { ctx.layout.closeDetails() },
+      openSidebar: () => { ctx.sidebarRight.openTab(DEVPANEL_KIND) },
+      closeSidebar: () => { if (ctx.sidebarRight.isExpanded()) ctx.sidebarRight.toggleExpanded() },
     }),
   }, ConsoleHeaderActions))
 
-  // File viewer in the layout's right details column (single slot, session
-  // scope — inline, non-floating, squeezes the center column). The header
-  // sidebar toggle opens/closes this column through ctx.layout. The harness
-  // DetailsPanel already occupies this slot at priority 0; a LOWER priority
-  // shadows it (lowest renders), so -10 wins.
-  ctx.slots.inject('details', () => ctx.slots.register({
-    name: 'details',
-    priority: -10,
+  // The AI-output / artifact viewer as a right-Sidebar tab type. 0.2 removed
+  // the standalone `details` seat this plugin used to occupy: the right column
+  // is now the Sidebar's own, and the supported way into it is a tab type.
+  // Registering the type puts this viewer in the Sidebar's tab strip; the body
+  // registers into the keyed seat under the same id, and the header button
+  // opens the kind. Nothing here reaches into the Sidebar's stores or panes.
+  ctx.effect(() => ctx.sidebarRightTabs.register({
+    id: DEVPANEL_ID,
+    kind: DEVPANEL_KIND,
+    title: () => ctx.locale.bind(NS)('sidebar.title'),
+  }), 'dsh-devpanel: sidebar tab type')
+
+  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab',
+    key: DEVPANEL_ID,
     locale: NS,
-    inject: () => ({
-      store,
-      terminalPanel,
-      // The harness layout closes the details column on every session switch;
-      // the sidebar re-opens it through this face when it renders open.
-      openDetails: () => { ctx.layout.openDetails() },
-      closeDetails: () => { ctx.layout.closeDetails() },
-    }),
-  }, ConsoleSidebar))
+    inject: () => ({ store, terminalPanel }),
+  }, ConsoleSidebar)), 'dsh-devpanel: sidebar tab body')
 
   // Terminate dialog docked under the composer (list slot, session scope).
   ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({

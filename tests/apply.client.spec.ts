@@ -57,15 +57,24 @@ function mountClient() {
   ctx.provide('slots', slots as never)
 
   const disposeLocale = vi.fn(() => {})
-  ctx.provide('locale', { register: vi.fn(() => disposeLocale) } as never)
+  ctx.provide('locale', { register: vi.fn(() => disposeLocale), bind: () => () => '' } as never)
 
   ctx.provide('sessions', {} as never)
 
-  const openDetails = vi.fn(() => {})
-  const closeDetails = vi.fn(() => {})
-  ctx.provide('layout', { openDetails, closeDetails } as never)
+  // The right Sidebar's navigation face and tab-type registry: the plugin opens
+  // its tab through the former and contributes the type through the latter.
+  const openTab = vi.fn(() => {})
+  const toggleExpanded = vi.fn(() => {})
+  ctx.provide('sidebarRight', { openTab, toggleExpanded, isExpanded: () => false } as never)
 
-  return { ctx, mount, disposeRemote, slots, openDetails, closeDetails }
+  const registerTab = vi.fn(() => () => {})
+  ctx.provide('sidebarRightTabs', { register: registerTab } as never)
+
+  ctx.provide('uiSession', {
+    adapter: { current: { getSnapshot: () => ({ key: undefined }) } },
+  } as never)
+
+  return { ctx, mount, disposeRemote, slots, openTab, toggleExpanded, registerTab }
 }
 
 afterEach(() => {
@@ -73,8 +82,8 @@ afterEach(() => {
 })
 
 describe('dsh-devpanel client apply', () => {
-  it('declares the Remote, slot registry, locale, sessions, and layout services', () => {
-    expect(inject).toEqual(['remote', 'slots', 'locale', 'sessions', 'layout'])
+  it('declares the Remote, slot registry, locale, sessions, and right-Sidebar services', () => {
+    expect(inject).toEqual(['remote', 'slots', 'locale', 'sessions', 'sidebarRight', 'sidebarRightTabs', 'uiSession'])
   })
 
   it('mounts the terminalPanel Remote contribution', async () => {
@@ -84,46 +93,46 @@ describe('dsh-devpanel client apply', () => {
     expect(mount).toHaveBeenCalledWith(TYPERT_REMOTE)
   })
 
-  it('registers the header actions, the file viewer, and the Terminate dialog slots', async () => {
-    const { ctx, slots, openDetails, closeDetails } = mountClient()
+  it('registers the header actions, the right-Sidebar tab type and body, and the Terminate dialog', async () => {
+    const { ctx, slots, registerTab } = mountClient()
     await apply(ctx as never)
 
-    // The file viewer occupies the layout's right details column; the dialog
-    // stays in the composer dock; the two header toggles ride the utilities
-    // row. The sidebar toggle drives the details column through ctx.layout.
+    // The file viewer is a right-Sidebar tab type now (0.2 removed the
+    // standalone details seat it used to occupy); the dialog stays in the
+    // composer dock; the two header toggles ride the utilities row.
     expect(slots.inject).toHaveBeenCalledTimes(3)
     const keys = slots.inject.mock.calls.map((call) => call[0] as string).sort()
     expect(keys).toEqual([
       'conversation.composer.dock',
       'conversation.session.header.utilities',
-      'details',
+      'sidebar.right.pane.tab',
     ])
 
     const registrations = slots.register.mock.calls as Array<
-      [{ name: string; id?: string; order?: number; locale: string }, unknown]
+      [{ name: string; id?: string; key?: string; order?: number; locale: string }, unknown]
     >
     const names = registrations.map(([options]) => options.name).sort()
     expect(names).toEqual([
       'conversation.composer.dock',
       'conversation.session.header.utilities',
-      'details',
+      'sidebar.right.pane.tab',
     ])
 
     const actions = registrations.find(([options]) => options.name === 'conversation.session.header.utilities')
     expect(actions?.[0]).toMatchObject({ id: 'toolkit-actions', order: 10, locale: NS })
     expect(actions?.[1]).toBe(ConsoleHeaderActions)
 
-    const sidebar = registrations.find(([options]) => options.name === 'details')
-    expect(sidebar?.[0]).toMatchObject({ locale: NS })
+    const sidebar = registrations.find(([options]) => options.name === 'sidebar.right.pane.tab')
+    expect(sidebar?.[0]).toMatchObject({ key: 'dsh-devpanel', locale: NS })
     expect(sidebar?.[1]).toBe(ConsoleSidebar)
 
     const dialog = registrations.find(([options]) => options.name === 'conversation.composer.dock')
     expect(dialog?.[0]).toMatchObject({ id: 'toolkit-dialog', order: 10, locale: NS })
     expect(dialog?.[1]).toBe(TerminateDialog)
 
-    // The header sidebar toggle opens/closes the layout details column.
-    expect(openDetails).not.toHaveBeenCalled()
-    expect(closeDetails).not.toHaveBeenCalled()
+    // The header's file button opens the plugin's own tab kind; the standalone
+    // column the old details seat drew is gone.
+    expect(registerTab).toHaveBeenCalledWith(expect.objectContaining({ id: 'dsh-devpanel', kind: 'devpanel' }))
   })
 
   it('unmounts the Remote namespace through the returned disposer', async () => {
