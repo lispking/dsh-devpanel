@@ -76,6 +76,14 @@ function stepEnd(seq: number, time: number, turn = 0, step = 0): SessionEvent {
   return { type: 'step/end', seq, time, data: { turn, step } } as SessionEvent
 }
 
+/**
+ * The durable fork cut 0.2 appends right after a child's inherited prefix; the
+ * old `header.seedLength` field no longer exists.
+ */
+function endSeed(seq: number, time: number): SessionEvent {
+  return { type: 'session/end-seed', seq, time, data: {} } as SessionEvent
+}
+
 function header(id: string, createdAt: number, extra: Partial<SessionHeader> = {}): SessionHeader {
   return { version: 1, id: id as never, createdAt, ...extra } as SessionHeader
 }
@@ -147,10 +155,10 @@ describe('summarizeSession', () => {
     const events = [
       userMessage(0, 1000), // parent seed
       userMessage(1, 2000), // parent seed
-      stepStart(2, 3000),
+      endSeed(2, 2500), // durable fork cut right after the inherited prefix
       assistantMessage(3, 4000, 'deepseek-chat', { inputTokens: 10, outputTokens: 5 }),
     ]
-    const child = header('child', 1000, { parentSession: 'parent' as never, seedLength: 2 })
+    const child = header('child', 1000, { parentSession: 'parent' as never })
     const folded = summarizeSession(child, events)
     expect(folded.activities.map(a => a.seq)).toEqual([3])
     expect(folded.activities[0]?.kind).toBe('assistant')
@@ -328,7 +336,14 @@ describe('UsageService integration', () => {
       await terminalService.write(spawned.id, ch, false)
     }
 
-    const page = await usage.terminals({ from: '2026-08-01', to: '2026-08-31', timeZone: 'UTC', page: 1, pageSize: 10 })
+    // This path timestamps events with the wall clock (the service emits them),
+    // so the window must contain "now" rather than the fixed August month the
+    // sibling test can use with explicitly dated events.
+    const now = Date.now()
+    const dayOf = (offsetDays: number): string =>
+      new Date(now + offsetDays * 86_400_000).toISOString().slice(0, 10)
+    const range = { from: dayOf(-1), to: dayOf(1), timeZone: 'UTC', page: 1, pageSize: 10 }
+    const page = await usage.terminals(range)
     expect(page.items[0]?.commandCount).toBe(2)
     expect(page.items[0]?.commands).toEqual([{ name: 'git', count: 1 }, { name: 'npm', count: 1 }])
 
@@ -336,7 +351,7 @@ describe('UsageService integration', () => {
     await terminalService.dispose(spawned.id)
     resolveDone({ exitCode: 0, signal: null })
     await new Promise<void>(resolve => setTimeout(resolve, 20))
-    const after = await usage.terminals({ from: '2026-08-01', to: '2026-08-31', timeZone: 'UTC', page: 1, pageSize: 10 })
+    const after = await usage.terminals(range)
     expect(after.items[0]?.endedAt).not.toBeNull()
     expect(after.items[0]?.exitCode).toBe(0)
 
