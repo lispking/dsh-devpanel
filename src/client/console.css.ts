@@ -188,12 +188,19 @@ export const CONSOLE_CSS = `
   box-sizing: border-box;
   /* The composer.dock band sits inside InputBar's centered flex root, which
      pads its children by --dsh-composer-side-clearance (16px) each side and
-     8px below; the whole stack rides the conversation scroller, which
-     reserves the scrollbar gutter on the right (--dsh-scrollbar-width, 8px)
-     via scrollbar-gutter: stable. The terminal must span the WHOLE band
+     4px below; the whole stack rides the conversation scroller, which
+     reserves the scrollbar gutter on the right (--dsh-scrollbar-width) via
+     scrollbar-gutter: stable. The terminal must span the WHOLE band
      edge-to-edge, so the negative margins cancel that outer padding AND the
      gutter (with an extra 8px buffer for engine scrollbar-width variance;
      the extra bleeds past the scroller's padding box, where it is clipped).
+     The host hands the band's slot to a centered flex ROW that it also seats
+     the context meter in. The panel is that row's only shrinkable item there,
+     so the meter's width and the row gap would come out of its own width, and
+     the centered overflow would drag it off the column edge. It therefore
+     opts out of the row's flex sizing (flex: none, so its authored width
+     stands) and the row is anchored for its presence — see the :has() rule
+     beside the scrollbar rules below.
      Only +/− calc operators are used — the '*' form is not supported in
      every embedded WebView and drops the whole declaration. Note the gutter
      itself can never be covered by width alone: the classic scrollbar's
@@ -212,8 +219,12 @@ export const CONSOLE_CSS = `
   --dsh-term-badge-border: #3b3b40;
   --dsh-term-scroll-thumb: rgba(255, 255, 255, 0.22);
   --dsh-term-hover-tint: rgba(255, 255, 255, 0.12);
+  /* The band's width is authored, not negotiated: the shared dock row seats a
+     context meter beside it, and a default flex item would give up exactly
+     that much width (see the row-anchoring rule below). */
+  flex: none;
   width: calc(100% + var(--dsh-composer-side-clearance, 16px) + var(--dsh-composer-side-clearance, 16px) + var(--dsh-scrollbar-width, 8px) + 8px);
-  margin: 0 0 -8px;
+  margin: 0 0 -4px;
   margin-left: calc(0px - var(--dsh-composer-side-clearance, 16px));
   margin-right: calc(0px - var(--dsh-composer-side-clearance, 16px) - var(--dsh-scrollbar-width, 8px) - 8px);
   /* Anchor for absolutely-positioned overlays (the Cmd/Ctrl+K snippet palette). */
@@ -747,6 +758,22 @@ body:not([data-ds-dark-theme]) .dsh-devpanel-dialog {
 }
 .dsh-devpanel-terminal .xterm-viewport {
   background-color: var(--dsh-term-bg) !important;
+}
+/* The host seats the composer dock's slot in a centered flex ROW together with
+   the context meter. The terminal panel is a full-band occupant rather than a
+   card: its own width and negative margins already make its outer box exactly
+   the row's content width, so once a sibling shares the line the line
+   overflows and 'justify-content: center' splits that overflow — dragging the
+   panel left by half the meter's width plus the row gap, off the column edge.
+   Anchor the line instead: the panel is the first item, so it lands on the
+   column edge and the meter is pushed past the clipped right overhang the
+   panel already bleeds into. Scoped through the dock's own slot anchor AND
+   the panel, so the rule exists only while the panel is mounted — with the
+   panel closed the meter stays centered exactly as the host intends. :has()
+   is the only parent selector CSS offers; an engine that drops it keeps the
+   host's centering and the panel's left shift, which is the pre-fix look. */
+div:has(> [data-slot='conversation.composer.dock'] .dsh-devpanel-dialog) {
+  justify-content: flex-start;
 }
 /* The chat scroller's classic scrollbar runs the whole column height, so its
    light track and thumb read as a white strip beside the dark terminal band.
