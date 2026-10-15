@@ -52,6 +52,7 @@ describe('TerminalPanelService', () => {
       cwd: '/tmp',
       rows: 24,
       cols: 80,
+      terminalType: 'xterm-256color',
       graceMs: 2_000,
     })
     const listed = await service.list()
@@ -64,7 +65,7 @@ describe('TerminalPanelService', () => {
     const { service, spawnTerminal } = await mountService()
     await service.spawn({ argv: [], cwd: '', rows: 10, cols: 40 })
     expect(spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({
-      argv: [process.env.SHELL ?? '/bin/sh', '-c', 'export TERM=xterm-256color; exec "${SHELL:-/bin/sh}"'],
+      argv: [process.env.SHELL ?? '/bin/sh'],
       cwd: process.cwd(),
     }))
   })
@@ -77,17 +78,17 @@ describe('TerminalPanelService', () => {
     }))
   })
 
-  it('wraps the default shell to force a real TERM so clear and prompt glyphs work', async () => {
+  it('declares a real TERM through the spawn spec so clear and prompt glyphs work', async () => {
     const { service, spawnTerminal } = await mountService()
     const result = await service.spawn({ argv: [], cwd: '', rows: 24, cols: 80 })
-    const spec = spawnTerminal.mock.calls[0]?.[0] as { argv: string[] } | undefined
-    // The harness forks PTYs with TERM=dumb (clear no-ops, zsh prints '?' for
-    // prompt glyphs); the default spawn must export a real TERM before exec.
-    expect(spec?.argv[0]).toBe(process.env.SHELL ?? '/bin/sh')
-    expect(spec?.argv[1]).toBe('-c')
-    expect(spec?.argv[2]).toContain('export TERM=xterm-256color')
-    expect(spec?.argv[2]).toContain('exec "${SHELL:-/bin/sh}"')
-    // The badge still names the user's shell, not the -c wrapper.
+    const spec = spawnTerminal.mock.calls[0]?.[0] as { argv: string[]; terminalType?: string } | undefined
+    // 0.2's provider advertises TERM from `terminalType`; 0.1 hardcoded
+    // TERM=dumb instead, which is why the old spec wrapped the shell in an
+    // `export TERM`. clear no-ops and zsh prints '?' for prompt glyphs when TERM
+    // does not describe the terminal.
+    expect(spec?.terminalType).toBe('xterm-256color')
+    expect(spec?.argv).toEqual([process.env.SHELL ?? '/bin/sh'])
+    // The badge still names the user's shell.
     expect(result.shell).toBe(basename(process.env.SHELL ?? '/bin/sh'))
   })
 

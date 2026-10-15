@@ -166,25 +166,16 @@ export class TerminalPanelService extends TypertRemoteService {
   async spawn(request: ConsoleSpawnRequest): Promise<ConsoleSpawnResult> {
     // Default argv uses the system login shell ($SHELL, falling back to /bin/sh)
     // instead of a hard-coded bash, so the panel behaves like a native terminal.
-    // The harness forks PTYs with TERM=dumb (subprocess-local hardcodes
-    // name:'dumb'), which makes `clear` emit nothing (its terminfo capability
-    // is empty) and zsh print a literal '?' in front of prompt glyphs whose
-    // width it cannot resolve. Wrap the default shell so it exports a real
-    // TERM before exec'ing the user's shell — self-contained, no harness
-    // change required.
+    // The emulation the child sees through TERM is declared by `terminalType`
+    // below: xterm-256color is what makes `clear` work and stops zsh printing a
+    // literal '?' before prompt glyphs whose width it cannot resolve.
     //
-    // Constraint: the TERM wrapper is ONLY applied when the caller leaves
-    // argv empty (the panel's own default tab). Explicit request argv is
-    // passed verbatim, so a caller who spawns `['bash']` directly inherits
-    // TERM=dumb and loses `clear`/prompt glyphs. This is intentional — the
-    // wrapper re-execs `${SHELL}` which would clobber a caller-chosen
-    // program — but the client default-tab path always sends argv: [] and
-    // therefore always gets the wrapped shell. Callers passing explicit
-    // argv are responsible for their own TERM setup.
+    // 0.1's provider hardcoded TERM=dumb and offered no way to change it, so this
+    // spawn used to work around it by re-exec'ing the shell with an explicit
+    // `export TERM`. 0.2 made the emulation a spawn parameter, which supersedes
+    // that wrapper for the default tab AND for callers passing explicit argv.
     const defaultShell = process.env.SHELL ?? '/bin/sh'
-    const argv = request.argv.length > 0
-      ? [...request.argv]
-      : [defaultShell, '-c', 'export TERM=xterm-256color; exec "${SHELL:-/bin/sh}"']
+    const argv = request.argv.length > 0 ? [...request.argv] : [defaultShell]
     // An empty cwd (unspecified) falls back to the host process cwd — the
     // project directory `dsh web` was launched from, matching the readFile/
     // listDir resolveTarget base. '~' stays an explicit home-directory
@@ -195,6 +186,7 @@ export class TerminalPanelService extends TypertRemoteService {
       cwd,
       rows: request.rows,
       cols: request.cols,
+      terminalType: 'xterm-256color',
       graceMs: 2_000,
     })
     const id = randomUUID()
