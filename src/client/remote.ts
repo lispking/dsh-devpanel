@@ -95,14 +95,14 @@ function descriptor(
       codec: {
         mode: 'strict',
         typeSymbol: parameter.typeSymbol,
-        schema: parameter.schema,
+        create: () => parameter.schema,
       },
     })),
     ...(cancellation === undefined ? {} : { cancellation }),
     result: {
       mode: 'strict',
       typeSymbol: resultSymbol,
-      schema: resultSchema,
+      create: () => resultSchema,
     },
   }
 }

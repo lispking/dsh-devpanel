@@ -75,14 +75,14 @@ function invocation(
       codec: {
         mode: 'strict' as const,
         typeSymbol: parameter.typeSymbol,
-        schema: parameter.schema,
+        create: () => parameter.schema,
       },
     })),
     ...(cancellation === undefined ? {} : { cancellation }),
     result: {
       mode: 'strict' as const,
       typeSymbol: resultSymbol,
-      schema: resultSchema,
+      create: () => resultSchema,
     },
   }
 }
