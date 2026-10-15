@@ -2,8 +2,11 @@ packages:
   - .
   - ../deepseek-harness/vendor/*
   - ../deepseek-harness/packages/*/*
-  - ../deepseek-harness/native/landlock-run
-  - ../deepseek-harness/native/landlock-run/packages/*
+  # The native launcher/addon tier moved from native/landlock-run to
+  # native/system in 0.2; apps/desktop consumes @deepseek-ai/node-addon-system
+  # from there, so leaving it unlisted fails resolution outright.
+  - ../deepseek-harness/native/system
+  - ../deepseek-harness/native/system/packages/*
   - ../deepseek-harness/apps/*
   - ../deepseek-harness/website
   - ../deepseek-harness/examples
@@ -18,8 +21,23 @@ allowBuilds:
   node-pty: false
   protobufjs: false
 
-# The workspace spans ../deepseek-harness, whose own lockfile pins
-# @earendil-works/pi-ai 0.84.2 (its llm-pi-ai drift gates compile against that
-# exact type surface). Keep this workspace's resolution aligned with it.
+# The workspace spans ../deepseek-harness, whose llm-pi-ai drift gates compile
+# against one exact pi-ai type surface. 0.2 moved that pin from 0.84.2 to
+# 0.87.1, so keep this workspace's resolution aligned with the harness.
 overrides:
-  '@earendil-works/pi-ai': 0.84.2
+  '@earendil-works/pi-ai': 0.87.1
+
+# Fresh pi-ai releases carry the model catalog updates that are the whole point
+# of bumping it; waiting out the release-age window would defeat that, and
+# pi-telemetry ships in the same release train.
+minimumReleaseAgeExclude:
+  - '@earendil-works/pi-ai@0.87.1'
+  - '@earendil-works/pi-telemetry@0.87.1'
+
+# The harness reviews this patch against pi-ai 0.87.1 (it drops the per-delta
+# parseStreamingJson calls, so a partial tool call's arguments are no longer
+# re-parsed on every stream chunk). A dependency resolved here is frozen by
+# hash, so this workspace must carry the same patch to resolve to the same
+# package revision the harness compiles against.
+patchedDependencies:
+  '@earendil-works/pi-ai@0.87.1': patches/@earendil-works__pi-ai@0.87.1.patch
