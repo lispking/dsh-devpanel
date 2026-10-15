@@ -16,6 +16,10 @@ packages:
 # plugin). esbuild's postinstall is approved so vitest/tsdown work reliably.
 allowBuilds:
   '@google/genai': false
+  # electron-builder pulls in the optional Squirrel.Windows helper, whose
+  # install script only selects its bundled 7-Zip executable. Desktop ships
+  # Windows through NSIS, so that mutation is not part of our build.
+  electron-winstaller: false
   esbuild: true
   koffi: false
   node-pty: false
