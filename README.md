@@ -68,7 +68,7 @@ The plugin is a two-face bundle, mirroring the harness client preset:
 `dsh-devpanel` is developed as a workspace package next to the harness source. Requirements:
 
 - Node `^22.19.0 || >=24.0.0`
-- **DeepSeek Harness `dsh-v0.1.2-alpha.4` or newer** — the client preset and session-log format this plugin targets do not exist in older releases
+- **DeepSeek Harness `dsh-v0.2.0` or newer** — the right-Sidebar tab system and several client/subprocess interfaces this plugin targets exist only from 0.2
 - pnpm workspace including `../deepseek-harness` (see `pnpm-workspace.yaml`)
 
 ```bash
@@ -77,7 +77,7 @@ pnpm install
 pnpm --filter dsh-devpanel build
 ```
 
-> **Minimum harness version.** This build depends on two harness refactors that first shipped in `dsh-v0.1.2-alpha.4`: the split of the legacy `dsh-client-runtime` client preset into `dsh-client-store` + the `dsh-client-ui-*` packages, and the session-log format rework (`SessionHeader.isSeeded` + `session/end-seed` markers replacing the removed `seedLength` field). Older harness releases — through `dsh-v0.1.2-alpha.3` and all `dsh-v0.1.1-rc.*` — are **not** supported: the plugin's client half injects modules those runtimes do not provide (the terminal dialog and file sidebar fail to mount), and the usage service cannot read their legacy session headers.
+> **Minimum harness version.** 0.2 removed the client `details` seat and the `ctx.layout` open/close actions this plugin used to occupy: the right column now belongs to `@deepseek-ai/dsh-client-ui-sidebar-right`, and the plugin re-enters as a right-Sidebar **tab type** (the type registers into `ctx.sidebarRightTabs`, the component into the keyed `sidebar.right.pane.tab` seat, and the column is driven through `ctx.sidebarRight`). The same release changed the other interfaces this plugin depends on: the session-list snapshot no longer carries `current` (the current Session comes from `ctx.uiSession.adapter.current`), the terminal spawn spec requires `terminalType` (the caller declares the TERM emulation, replacing 0.1's hardcoded `TERM=dumb`), the Typert codec materializes through a lazy `create()` instead of `schema`, and `DiffBlockLabels` gained the code-toolbar labels. Older harness releases — `dsh-v0.1.*`, including everything before the `session/end-seed` rework — are **not** supported: the file sidebar never mounts on those runtimes, and the terminal panel cannot get a real TERM.
 
 The plugin contributes a bundle row via `cordis.patch.yml` (`{ id: toolkit, name: dsh-devpanel }`); enable it in a harness profile that lists this bundle. The published package exposes four entry points:
 

@@ -68,7 +68,7 @@
 `dsh-devpanel` 作为 workspace 包与 harness 源码并列开发。环境要求：
 
 - Node `^22.19.0 || >=24.0.0`
-- **DeepSeek Harness `dsh-v0.1.2-alpha.4` 及以上**——本插件依赖的客户端 preset 与会话日志格式在更早版本中不存在
+- **DeepSeek Harness `dsh-v0.2.0` 及以上**——本插件依赖的右侧栏 tab 体系与若干客户端/子进程接口只在 0.2 中提供
 - 包含 `../deepseek-harness` 的 pnpm workspace（见 `pnpm-workspace.yaml`）
 
 ```bash
@@ -77,7 +77,7 @@ pnpm install
 pnpm --filter dsh-devpanel build
 ```
 
-> **最低 harness 版本。** 本构建依赖两项最早随 `dsh-v0.1.2-alpha.4` 发布的 harness 重构：其一是把旧 `dsh-client-runtime` 客户端 preset 拆分为 `dsh-client-store` + 各 `dsh-client-ui-*` 包，其二是会话日志格式改造（`SessionHeader.isSeeded` + `session/end-seed` 标记取代已移除的 `seedLength` 字段）。更旧的 harness 版本——`dsh-v0.1.2-alpha.3` 及以下、以及所有 `dsh-v0.1.1-rc.*`——**均不受支持**：插件客户端注入的模块在这些运行时中不存在（终端对话框与文件侧边栏无法挂载），使用统计服务也无法读取其旧版会话头。
+> **最低 harness 版本。** 0.2 移除了插件原先占用的客户端 `details` 槽位与 `ctx.layout` 的开合动作：右侧栏改由 `@deepseek-ai/dsh-client-ui-sidebar-right` 拥有，本插件以「右侧栏 tab 类型」的形式重新接入（类型注册进 `ctx.sidebarRightTabs`，组件注册进 keyed 槽位 `sidebar.right.pane.tab`，开关走 `ctx.sidebarRight`）。同一版本还改了本插件依赖的另外几处接口：会话列表快照不再带 `current`（当前会话改从 `ctx.uiSession.adapter.current` 取）、终端 spawn 规格新增必填 `terminalType`（TERM 仿真由调用方声明，取代 0.1 中硬编码的 `TERM=dumb`）、Typert 编解码器改用惰性 `create()` 取代 `schema`、`DiffBlockLabels` 增加代码工具栏文案。更旧的 harness——`dsh-v0.1.*`（含 `session/end-seed` 改造之前的版本）——**均不受支持**：文件侧边栏在那些运行时中不会挂载，终端面板也拿不到真实的 TERM。
 
 插件通过 `cordis.patch.yml` 贡献一条 bundle 记录（`{ id: toolkit, name: dsh-devpanel }`）；在列出该 bundle 的 harness profile 中启用即可。发布包暴露四个入口：
 
