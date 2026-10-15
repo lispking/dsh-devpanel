@@ -1,5 +1,13 @@
 # dsh-devpanel
 
+> **维护模式。** DeepSeek Harness 0.2 已内置本插件大部分能力的官方实现，因此 `dsh-devpanel` 不再积极开发，仅会修复关键问题。已安装的插件可继续使用；新用户建议优先使用下列官方能力。
+>
+> | 插件能力 | 官方替代（dsh 0.2+） |
+> | --- | --- |
+> | 终端面板 —— 多标签 PTY | `@deepseek-ai/dsh-client-ui-sidebar-terminal` —— 右侧栏交互式 shell 标签页（xterm.js、重连、shell 选择） |
+> | 使用统计面板 | `@deepseek-ai/dsh-session-stats`，以及 `@deepseek-ai/dsh-client-ui-chat` 中的 composer 统计胶囊 / 单回合用量面板 |
+> | AI 输出文件侧边栏 | *（无完全替代）* —— `@deepseek-ai/dsh-client-ui-deliverables` 只展示单回合变更文件，`@deepseek-ai/dsh-client-ui-sidebar-files` 浏览整个工作区，均无法列出「本会话 AI 产出的全部文件」。这是插件仅剩的独特价值。 |
+
 > DeepSeek Harness（DSH）开发者工具箱：为 Web 控制台带来真实的 PTY 多标签终端、AI 输出文件浏览器，以及 AI+终端双维使用统计面板。
 
 `dsh-devpanel` 是 DeepSeek Harness 的一个插件，为浏览器控制台带来三大能力：

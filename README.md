@@ -1,5 +1,13 @@
 # dsh-devpanel
 
+> **Maintenance mode.** DeepSeek Harness 0.2 now ships built-in equivalents for most of what this plugin provides, so `dsh-devpanel` is no longer actively developed — only critical fixes will be applied. Existing installs keep working; new users should prefer the official features below.
+>
+> | Plugin capability | Official replacement (dsh 0.2+) |
+> | --- | --- |
+> | Terminal panel — multi-tab PTY | `@deepseek-ai/dsh-client-ui-sidebar-terminal` — interactive shell tabs in the right Sidebar (xterm.js, reconnect, shell picker) |
+> | Usage stats panel | `@deepseek-ai/dsh-session-stats` plus the composer stats pills / per-turn usage panel in `@deepseek-ai/dsh-client-ui-chat` |
+> | AI-output file sidebar | *(no full equivalent)* — `@deepseek-ai/dsh-client-ui-deliverables` shows per-turn changed files and `@deepseek-ai/dsh-client-ui-sidebar-files` browses the whole workspace, but neither lists every file a session's AI produced. This surface remains the plugin's only unique value. |
+
 > A developer toolkit for the DeepSeek Harness (DSH) web console: a real multi-tab PTY terminal plus an AI-output file browser.
 
 `dsh-devpanel` is a plugin for the DeepSeek Harness that brings three things into the browser console:
